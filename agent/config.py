@@ -401,7 +401,9 @@ def load_config(config_path: Path | None = None) -> AgentConfig:
             mcp_cfg = MCPServerConfig()
             for key, val in item.items():
                 if hasattr(mcp_cfg, key):
-                    setattr(mcp_cfg, key, val)
+                    # url / env / headers 等字符串字段均支持 ${ENV_VAR} 插值，
+                    # 便于把含令牌的 MCP 地址放进 .env，避免提交到公开仓库
+                    setattr(mcp_cfg, key, _interpolate_env(val) if isinstance(val, str) else val)
             # 环境变量插值（env 和 headers 字段）
             mcp_cfg.env = _interpolate_env_dict(mcp_cfg.env)
             mcp_cfg.headers = _interpolate_env_dict(mcp_cfg.headers)

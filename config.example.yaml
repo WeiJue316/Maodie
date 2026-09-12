@@ -1,60 +1,108 @@
 # project_class/config.example.yaml
 # 复制此文件为 config.yaml 并填写你的配置。
-# API Key 建议放在 .env 文件中（AGENT_API_KEY=xxx），避免提交到版本库。
+# 警告：config.yaml 为本机私有配置（可能含 API Key / MCP 令牌），已被 .gitignore 排除，切勿提交。
+# 任何密钥建议放在 .env 文件（如 AGENT_API_KEY=xxx、MIMO_API_KEY=xxx），config.yaml 中用 ${ENV_VAR} 引用，避免泄露。
 
 llm:
-  provider: minimax                       # 支持: minimax | deepseek | openai | custom
-  api_key: ""                             # 留空则从 AGENT_API_KEY 环境变量读取
-  base_url: "https://api.minimax.chat/v1" # MiniMax 兼容 OpenAI 接口
-  model: "MiniMax-M2.7"
+  provider: mimo                           # 支持: minimax | deepseek | openai | custom | mimo
+  api_key: ""                              # 留空则从 AGENT_API_KEY 环境变量读取
+  base_url: "https://token-plan-cn.xiaomimimo.com/v1"
+  model: "mimo-v2.5-pro"
   temperature: 0.7
-  timeout: 60
+  timeout: 180
   max_retries: 3
-  streaming: true                         # 启用流式输出
+  streaming: true                          # 启用流式输出
+  models:                                  # 可选：可在会话中切换的多模型预设
+    - name: "MiniMax-M2.7"
+      provider: minimax
+      base_url: "https://api.minimax.chat/v1"
+    - name: "deepseek-chat"
+      provider: deepseek
+      base_url: "https://api.deepseek.com/v1"
+    - name: "mimo-v2.5-pro"
+      provider: mimo
+      base_url: "https://token-plan-cn.xiaomimimo.com/v1"
+      api_key: "${MIMO_API_KEY}"           # 从 .env 读取
 
 agent:
-  max_iterations: 20                      # 单次 loop 最大工具调用轮数
-  work_dir: "."                           # 工作目录（相对于 project_class/）
+  max_iterations: 40                       # 单次 loop 最大工具调用轮数
+  work_dir: "."                            # 工作目录（相对于 project_class/）
   system_prompt: |
     你是一个智能助手，可以使用工具帮助用户完成任务。
     工作目录为 {work_dir}。
     在使用工具时，请逐步思考并说明你的操作意图。
 
 session:
-  dir: ".sessions"                        # Session 文件存储目录
-  max_history: 100                        # 单 Session 最多保留消息轮数
-  auto_save: true                         # 每轮对话后自动保存
+  dir: ".sessions"                         # Session 文件存储目录
+  max_history: 100                         # 单 Session 最多保留消息轮数
+  auto_save: true                          # 每轮对话后自动保存
 
 tools:
-  enabled:                                # 启用的工具，注释掉即可禁用
+  enabled:                                 # 启用的工具，注释掉即可禁用
     - read_file
     - write_file
     - list_dir
     - change_dir
     - shell
     - search_files
+    - select_skill
+    - create_workbook
+    - read_workbook
+    - edit_cell
+    - format_cells
+    - manage_sheet
 
 skills:
-  dir: "skills"                           # Skill 目录（相对于 project_class/）
-  max_skills_in_prompt: 50                # 目录最多包含多少个 skill
-  max_prompt_chars: 10000                 # 目录最大字符数（超出自动降级）
+  dir: "agent-skills"                      # Skill 目录（相对于 project_class/）
 
 observation:
   enabled: true
-  db_path: ".memory/memory.db"            # SQLite 数据库路径
-  extract_model: ""                       # 空则使用主 LLM 模型
+  db_path: ".memory/memory.db"             # SQLite 数据库路径
+  extract_model: ""                        # 空则使用主 LLM 模型
   extract_temperature: 0.3
   max_observations_per_session: 10
 
 vectordb:
   enabled: true
-  persist_dir: ".memory/chroma"           # ChromaDB 持久化目录
-  embedding_model: "all-MiniLM-L6-v2"
+  persist_dir: ".memory/chroma"            # ChromaDB 持久化目录
+  embedding_model: "BAAI/bge-small-zh-v1.5"  # 中文优化 embedding
   collection_name: "observations"
 
 memory_search:
   enabled: true
-  auto_search: true                       # 每轮对话自动检索
-  search_limit: 5                         # 注入 system prompt 的最大条数
-  promotion_threshold: 3                  # relevance_count 达到此值时晋升
+  auto_search: true                        # 每轮对话自动检索
+  search_limit: 5                          # 注入 system prompt 的最大条数
+  promotion_threshold: 3                   # relevance_count 达到此值时晋升
   auto_promote: true
+
+agents:
+  architect:
+    system_prompt: |
+      你是一个软件架构师，负责分析需求、设计模块结构、定义接口。
+      输出应该包含：模块划分、接口定义、数据结构、技术选型理由。
+    max_iterations: 15
+  coder:
+    system_prompt: |
+      你是一个高级开发者，根据设计规格编写实现代码。
+      要求：代码风格一致、有必要的错误处理、遵循项目约定。
+    max_iterations: 30
+  reviewer:
+    system_prompt: |
+      你是一个代码审查专家，检查代码质量、安全性和可维护性。
+      输出格式：问题列表，每个问题包含文件位置、问题描述、修复建议。
+    tools: [read_file, list_dir, search_files]
+    max_iterations: 10
+
+orchestrator:
+  enabled: true
+  task_timeout: 300                        # 单任务超时(秒)
+  max_concurrent_tasks: 3                  # 最大并发子任务数
+  max_result_chars: 12000                  # 单任务结果最大字符
+  task_retention_seconds: 3600             # 终态任务保留时长
+
+# 外部 MCP Server。URL 中可能含有你的私有访问令牌，用 ${ENV_VAR} 引用并在 .env 填写，切勿写死真实令牌。
+mcp_servers:
+  - name: "example-mcp"
+    transport: "streamable_http"           # streamable_http | sse | stdio
+    url: "${EXAMPLE_MCP_URL}"              # 例如 https://mcp.api-inference.modelscope.net/<your-token>/mcp
+    timeout: 30

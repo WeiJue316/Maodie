@@ -28,3 +28,5 @@ frontend/dist/
 Thumbs.db
 # 第三方技能(不纳入版本库)
 agent-skills/guizang-ppt-skill/
+# 私有配置(含 MCP 令牌, 勿上传)
+config.yaml
