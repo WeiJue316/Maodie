@@ -67,7 +67,7 @@ pytest tests/ --cov=agent --cov-report=term-missing
 **已扩展的功能模块：**
 - **多 Agent 协作** — `agent/orchestrator.py`。主 Agent 用 `spawn_agent` 异步启动专业子 Agent，`depends_on` 依赖调度，`ThreadPoolExecutor` 并行，`CancellationToken` 协作取消。子 Agent 类型在 `config.yaml` 的 `agents` 段定义（system_prompt/model/tools/max_iterations）
 - **MCP Client** — `agent/mcp/`（manager.py / transport.py / bridge.py / schema.py）。支持 streamable_http / sse / stdio 传输；server 列表在 `config.yaml` 的 `mcp_servers` 段
-- **Skills 系统** — `agent/skills.py`。从 `agent-skills/` 目录加载技能，`select_skill` 工具按序挑选
+- **Skills 系统** — `agent/skills.py`。从 `agent-skills/` 目录加载技能，`select_skill` 工具按序挑选。注意：`agent-skills/` 内的技能内容和 `skills_*.json` 属个人/第三方资料，**已在 .gitignore 排除，不纳入版本库**；仓库只含加载它们的代码与 API（`agent/api/skills.py`）
 - **记忆系统（双层）** — Observation（`agent/observation.py`，SQLite+FTS5）+ 长期记忆 MEMORY.md（`agent/memory.py`），`agent/memory_search.py` 混合检索（向量+全文）并自动晋升，`agent/extractor.py` 会话结束提取 Observation，`agent/vectordb.py` ChromaDB 向量层
 
 ### 配置优先级
@@ -118,6 +118,6 @@ YAML 默认值 → `.env` 文件 → 环境变量（最高优先级）
 
 - 本仓库目标公开，**严禁提交密钥**（见「公开仓库安全约定」）
 - `config.yaml`、`.env`、`.sessions/`、`.memory/`、`node_modules/`、`dist/` 均忽略
-- 第三方技能 clone（如 `agent-skills/guizang-ppt-skill`）不纳入版本库
+- 个人/第三方技能 `agent-skills/` 及 `skills_*.json`（含本机绝对路径）均忽略，仅本地
 - commit message 用英文
 - git push 仅用于跨设备同步，不自动执行，等用户明确指示

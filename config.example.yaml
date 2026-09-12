@@ -53,7 +53,7 @@ tools:
     - manage_sheet
 
 skills:
-  dir: "agent-skills"                      # Skill 目录（相对于 project_class/）
+  dir: "agent-skills"                      # Skill 目录（相对于 project_class/）；个人/第三方技能仅本地，不入版本库
 
 observation:
   enabled: true
