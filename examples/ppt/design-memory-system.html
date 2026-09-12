@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Python ReAct Agent · 记忆增强设计</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@200;300;400;500;600;700;800;900&family=JetBrains+Mono:wght@300;400;500;600&family=Noto+Sans+SC:wght@200;300;400;500;700;900&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#fafaf8;--paper-rgb:250,250,248;
+    --ink:#0a0a0a;--ink-rgb:10,10,10;
+    --grey-1:#f0f0ee;--grey-2:#d4d4d2;--grey-3:#737373;
+    --accent:#002FA7;--accent-rgb:0,47,167;--accent-on:#ffffff;--accent-bright:#5B7BFF;
+    --text-primary:#0a0a0a;--text-secondary:#525252;--text-helper:#737373;
+    --text-placeholder:#a3a3a3;--text-on-color:#ffffff;
+    --border-subtle:#e0e0e0;--border-strong:#a3a3a3;
+    --sans:"Inter","Helvetica Neue","Helvetica","Arial","Segoe UI Variable","Segoe UI",system-ui,-apple-system,sans-serif;
+    --sans-zh:"PingFang SC","Hiragino Sans GB","Source Han Sans SC","Noto Sans SC","Microsoft YaHei UI","Microsoft YaHei","微软雅黑",sans-serif;
+    --mono:"JetBrains Mono","IBM Plex Mono","SF Mono","Cascadia Code","Consolas","Courier New",ui-monospace,monospace;
+    --sp-3:8px;--sp-4:12px;--sp-5:16px;--sp-6:24px;--sp-7:32px;--sp-8:40px;--sp-9:48px;--sp-10:64px;--sp-11:80px;--sp-12:96px;--sp-13:160px;
+    --ease-prod:cubic-bezier(.2,0,.38,.9);--ease-entry-exp:cubic-bezier(0,0,.3,1);
+    --nav-safe-bottom:8vh;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{width:100%;height:100%;overflow:hidden;background:var(--paper);color:var(--ink);font-family:var(--sans),var(--sans-zh);font-feature-settings:"ss01","cv11";-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+  canvas.bg{position:fixed;inset:0;width:100vw;height:100vh;z-index:0;display:block;opacity:.55;mix-blend-mode:multiply;pointer-events:none}
+  body.dark-bg canvas.bg{mix-blend-mode:screen;opacity:.42}
+  body.low-power canvas.bg,body.low-power canvas.ascii-bg{display:none!important}
+  #deck{position:fixed;inset:0;width:10000vw;height:100vh;display:flex;flex-wrap:nowrap;transition:transform .9s cubic-bezier(.77,0,.175,1);z-index:10;will-change:transform}
+  .slide{width:100vw;height:100vh;flex:0 0 100vw;position:relative;padding:5.5vh 5vw 7vh 5vw;display:flex;flex-direction:column;overflow:hidden;background:var(--paper);color:var(--ink)}
+  .slide.grey{background:var(--grey-1)}.slide.dark{background:var(--ink);color:var(--paper)}.slide.accent{background:var(--accent);color:var(--accent-on)}
+  .slide.hero{background:transparent}
+  .rule{width:100%;height:1px;background:currentColor;opacity:.18;margin:0}
+  .t-cat{font-family:var(--mono);font-size:14px;font-weight:600;letter-spacing:.15em;text-transform:uppercase;color:var(--text-helper);line-height:1.3}
+  .t-cat.accent{color:var(--accent)}
+  .t-meta{font-family:var(--mono);font-size:14px;font-weight:500;letter-spacing:.14em;text-transform:uppercase;color:var(--text-helper);line-height:1.45}
+  .lead{font-family:var(--sans),var(--sans-zh);font-weight:400;font-size:1.55vw;line-height:1.4;letter-spacing:-.005em;opacity:.86}
+  .body{font-family:var(--sans),var(--sans-zh);font-weight:400;font-size:max(18px,1.08vw);line-height:1.6;opacity:.78}
+  .canvas-card{width:100vw;height:100vh;background:var(--paper);color:var(--ink);padding:5.6vh 5vw 4.4vh;display:flex;flex-direction:column;position:relative;overflow:hidden;box-shadow:none;border-radius:0}
+  .slide.dark .canvas-card{background:var(--ink);color:var(--paper)}.slide.accent .canvas-card{background:var(--accent);color:var(--accent-on)}.slide.grey .canvas-card{background:var(--grey-1);color:var(--ink)}.slide.split .canvas-card{padding:0;flex-direction:row}
+  .canvas-card > *:not(.ascii-bg){position:relative;z-index:1}
+  .canvas-card .chrome-min{display:flex;justify-content:space-between;align-items:flex-start;font-family:var(--mono);font-size:14px;font-weight:500;letter-spacing:.14em;text-transform:uppercase;color:var(--text-helper);flex:0 0 auto;margin-bottom:var(--sp-9)}
+  .canvas-card .chrome-min .l,.canvas-card .chrome-min .r{max-width:48vw;line-height:1.5}
+  .slide.dark .canvas-card .chrome-min{color:rgba(255,255,255,.62)}
+  canvas.ascii-bg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:0;mix-blend-mode:screen;opacity:.92}
+  .slide.accent .canvas-card .chrome-min{color:rgba(255,255,255,.62)}.slide.accent .canvas-card .t-meta{color:rgba(255,255,255,.7)}
+  .split-half > .half.b-accent .chrome-min{color:rgba(255,255,255,.62)}
+
+  .sub-grid-3-2{display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(2,1fr);gap:1.4vh 1.4vw;flex:1;align-content:stretch;margin-top:3vh}
+  .sub-card{background:var(--grey-1);padding:2.4vh 1.6vw 2vh;display:flex;flex-direction:column;position:relative;min-height:0}
+  .slide.dark .sub-card{background:rgba(255,255,255,.06)}.sub-card.accent{background:var(--accent);color:var(--accent-on)}.sub-card.ink{background:var(--ink);color:var(--paper)}
+  .sub-card .nb-corner{position:absolute;top:1.6vh;right:1.4vw;font-family:var(--mono);font-size:max(14px,.8vw);letter-spacing:.16em;opacity:.55}
+  .sub-card .ttl{font-family:var(--sans),var(--sans-zh);font-weight:500;font-size:max(17px,1.5vw);line-height:1.2;letter-spacing:-.015em;margin-bottom:1vh}
+  .sub-card .desc{font-family:var(--sans),var(--sans-zh);font-size:max(16px,.94vw);line-height:1.55;opacity:.78;margin-top:auto}
+  .sub-card .lucide{width:2.4vw;height:2.4vw;stroke-width:1.4;color:currentColor;margin-bottom:1.6vh;flex-shrink:0}
+  .sub-card.accent .lucide{color:var(--accent-on)}
+
+  .stack-row{display:grid;grid-template-columns:repeat(3,1fr);gap:1.6vw;flex:1;margin-top:6vh;align-items:stretch}
+  .stack-block{display:flex;flex-direction:column;padding:3.2vh 1.8vw 2.4vh;position:relative;min-height:0}
+  .stack-block.b-accent{background:var(--accent);color:var(--accent-on)}.stack-block.b-grey{background:var(--grey-1);color:var(--ink)}.stack-block.b-ink{background:var(--ink);color:var(--paper)}
+  .stack-block .layer-nb{font-family:var(--mono);font-size:max(14px,.84vw);letter-spacing:.18em;opacity:.65;margin-bottom:auto}
+  .stack-block .layer-ttl{font-family:var(--sans),var(--sans-zh);font-weight:400;font-size:max(17px,2vw);line-height:1.1;margin-top:1vh;letter-spacing:-.02em}
+  .stack-block .layer-desc{font-family:var(--sans),var(--sans-zh);font-weight:400;font-size:max(16px,.94vw);line-height:1.55;opacity:.88;margin-top:1.4vh}
+  .stack-block .lucide{width:2.6vw;height:2.6vw;stroke-width:1.4;margin-bottom:1.6vh;flex-shrink:0}
+  .stack-block .layer-tag{font-family:var(--mono);font-size:max(14px,.74vw);letter-spacing:.16em;text-transform:uppercase;opacity:.7;margin-top:1.6vh;border-top:1px solid currentColor;padding-top:1vh}
+
+  .duo-compare{display:grid;grid-template-columns:1fr 1px 1fr;gap:0 3.4vw;flex:1;align-items:stretch;margin-top:8vh}
+  .duo-compare .vrule{background:var(--grey-2);width:1px;align-self:stretch}
+  .duo-compare .col{display:flex;flex-direction:column;gap:1.6vh;padding:0 .4vw}
+  .duo-compare .col-tag{font-family:var(--mono);font-size:max(14px,.78vw);letter-spacing:.16em;text-transform:uppercase;color:var(--grey-3);display:flex;align-items:center;gap:.6vw}
+  .duo-compare .col-tag .num{font-weight:600;color:var(--ink);border:1px solid var(--ink);padding:.2em .6em;font-size:.92em}
+  .duo-compare .col.accent .col-tag .num{color:var(--accent);border-color:var(--accent)}
+  .duo-compare .col-ttl{font-family:var(--sans),var(--sans-zh);font-weight:200;font-size:3.6vw;line-height:1;letter-spacing:-.03em}
+  .duo-compare .col.accent .col-ttl{color:var(--accent)}
+  .duo-compare .col-desc{font-family:var(--sans),var(--sans-zh);font-size:max(16px,1.04vw);line-height:1.55;opacity:.78;max-width:30vw}
+  .duo-compare .col-list{list-style:none;display:flex;flex-direction:column;gap:1vh;margin-top:auto;padding-top:2vh;border-top:1px solid var(--grey-2)}
+  .duo-compare .col-list li{font-family:var(--sans),var(--sans-zh);font-size:max(16px,.94vw);line-height:1.5;padding-left:1.4em;position:relative}
+  .duo-compare .col-list li::before{content:"";position:absolute;left:0;top:.6em;width:.5em;height:1px;background:currentColor;opacity:.55}
+  .duo-compare .col.accent .col-list li::before{background:var(--accent);opacity:1}
+
+  .split-half{display:grid;grid-template-columns:1fr 1fr;gap:0;flex:1;align-items:stretch}
+  .split-half > .half{padding:5vh 3.4vw;display:flex;flex-direction:column;min-width:0}
+  .split-half > .half.b-accent{background:var(--accent);color:var(--accent-on)}
+
+  .timeline-v{--tl-axis-w:24px;--tl-dot:8px;position:relative;margin-top:var(--sp-7)}
+  .timeline-v::before{content:"";position:absolute;left:calc(var(--tl-axis-w) / 2);transform:translateX(-50%);top:var(--sp-5);bottom:var(--sp-5);width:1px;background:repeating-linear-gradient(to bottom,currentColor 0 4px,transparent 4px 8px);opacity:.35;pointer-events:none;z-index:0}
+  .tl-node{position:relative;display:grid;grid-template-columns:var(--tl-axis-w) minmax(0,7em) minmax(0,7.6em) 1fr;gap:0 var(--sp-5);align-items:center;padding:var(--sp-7) 0}
+  .tl-node .dot{width:var(--tl-dot);height:var(--tl-dot);border-radius:50%;background:currentColor;justify-self:center;z-index:1}
+  .tl-node.accent .dot{background:var(--accent)}
+  .tl-node .yr{font-family:var(--mono);font-weight:500;font-size:max(14px,1vw);letter-spacing:.04em}
+  .tl-node .multi{font-family:var(--sans);font-weight:200;font-size:clamp(28px,2.8vw,56px);line-height:.95;letter-spacing:-.025em;white-space:nowrap;overflow:hidden;min-width:0}
+  .tl-node .multi .unit{font-size:.36em;font-weight:300;opacity:.6;margin-left:.2em;vertical-align:.42em;letter-spacing:0}
+  .tl-node.accent .multi{color:var(--accent)}
+  .tl-node .desc{font-family:var(--sans),var(--sans-zh);font-size:max(16px,.94vw);line-height:1.55;opacity:.78;min-width:0}
+
+  .timeline-h{--tl-axis-w:8px;--tl-dot:8px;position:relative;flex:1;display:flex;align-items:center}
+  .timeline-h::before{content:"";position:absolute;top:50%;left:5%;right:5%;height:1px;transform:translateY(-50%);background:repeating-linear-gradient(to right,currentColor 0 4px,transparent 4px 8px);opacity:.35;pointer-events:none;z-index:0}
+  .timeline-h .tl-row{position:relative;width:100%;display:grid;grid-template-columns:repeat(6,1fr);align-items:center}
+  .timeline-h .th-node{position:relative;display:flex;justify-content:center}
+  .timeline-h .th-node .dot{width:var(--tl-dot);height:var(--tl-dot);border-radius:50%;background:var(--ink);z-index:1;position:relative}
+  .timeline-h .th-node.accent .dot{background:var(--accent)}
+  .timeline-h .th-node .label{position:absolute;left:50%;transform:translateX(-50%);width:13vw;text-align:center;display:flex;flex-direction:column;gap:.4vh}
+  .timeline-h .th-node.up .label{bottom:calc(50% + 22px)}
+  .timeline-h .th-node.down .label{top:calc(50% + 22px)}
+  .timeline-h .th-node .yr{font-family:var(--mono);font-size:max(14px,.78vw);letter-spacing:.05em;color:var(--text-helper);font-weight:500}
+  .timeline-h .th-node.accent .yr{color:var(--accent)}
+  .timeline-h .th-node .name{font-family:var(--sans);font-size:max(16px,1.05vw);font-weight:400;color:var(--text-primary);line-height:1.2;letter-spacing:-.005em}
+  .timeline-h .th-node.accent .name{color:var(--accent)}
+  .timeline-h .th-node .desc{font-family:var(--sans),var(--sans-zh);font-size:max(14px,.84vw);color:var(--text-secondary);font-weight:400;line-height:1.4}
+
+  .four-cards{display:grid;grid-template-columns:repeat(4,1fr);gap:1.6vw;flex:1;align-items:stretch;margin-top:4vh}
+  .fc-col{display:flex;flex-direction:column;gap:1.4vh;padding:2.4vh 1.6vw 2vh;border-top:3px solid var(--accent);background:var(--grey-1)}
+  .fc-col .fc-nb{font-family:var(--mono);font-size:max(14px,.82vw);letter-spacing:.16em;text-transform:uppercase;color:var(--accent);font-weight:600}
+  .fc-col .fc-ttl{font-family:var(--sans),var(--sans-zh);font-weight:400;font-size:max(18px,1.8vw);line-height:1.2;letter-spacing:-.015em}
+  .fc-col .fc-desc{font-family:var(--sans),var(--sans-zh);font-size:max(16px,.94vw);line-height:1.55;opacity:.78;margin-top:auto}
+
+  .loop-diagram{display:grid;grid-template-columns:1fr 1fr;gap:3vw;flex:1;align-items:center;margin-top:4vh}
+  .loop-steps{display:flex;flex-direction:column;gap:2.4vh}
+  .loop-step{display:grid;grid-template-columns:auto 1fr;gap:1.2vw;align-items:start}
+  .loop-step .step-num{font-family:var(--mono);font-weight:600;font-size:max(14px,1vw);color:var(--accent);border:1px solid var(--accent);padding:.2em .5em;letter-spacing:.04em}
+  .loop-step .step-body{display:flex;flex-direction:column;gap:.4vh}
+  .loop-step .step-title{font-family:var(--sans),var(--sans-zh);font-weight:500;font-size:max(17px,1.3vw);letter-spacing:-.01em}
+  .loop-step .step-desc{font-family:var(--sans),var(--sans-zh);font-size:max(16px,.94vw);opacity:.7;line-height:1.5}
+
+  .sys-diagram{display:flex;flex-direction:column;gap:2vh;align-items:center;flex:1;justify-content:center;margin-top:2vh}
+  .sys-layer{display:flex;gap:1.2vw;align-items:center;justify-content:center}
+  .sys-box{padding:1.6vh 2vw;font-family:var(--sans),var(--sans-zh);font-size:max(16px,1vw);font-weight:400;text-align:center;min-width:10vw}
+  .sys-box.accent{background:var(--accent);color:var(--accent-on)}.sys-box.ink{background:var(--ink);color:var(--paper)}.sys-box.grey{background:var(--grey-1)}
+  .sys-arrow{font-family:var(--sans);font-size:2vw;color:var(--grey-3);display:flex;align-items:center;justify-content:center}
+
+  #nav{position:fixed;left:50%;bottom:2vh;transform:translateX(-50%);z-index:30;display:flex;gap:10px;padding:0;background:transparent;border:0}
+  #nav .dot{width:6px;height:6px;background:rgba(0,0,0,.28);cursor:pointer;transition:all .25s ease;border:0;padding:0;border-radius:0}
+  #nav .dot:hover{background:rgba(0,0,0,.55)}#nav .dot.active{background:var(--accent);width:18px}
+  body.dark-bg #nav .dot{background:rgba(255,255,255,.32)}body.dark-bg #nav .dot.active{background:var(--accent)}
+  #hint{position:fixed;bottom:2.4vh;right:2.5vw;z-index:30;font-family:var(--mono);font-size:14px;letter-spacing:.14em;text-transform:uppercase;opacity:.4}
+  body.dark-bg #hint{color:var(--paper);opacity:.4}body.low-power #hint{color:var(--accent);opacity:.72}
+  #overview [data-anim]{opacity:1!important;transform:none!important}#overview .slide *{animation:none!important;transition:none!important}
+
+  [data-anim]{opacity:1}body.motion-ready [data-anim]{opacity:0}
+  body.low-power #deck{transition:none!important}body.low-power *,body.low-power *::before,body.low-power *::after{animation:none!important;transition:none!important}
+  body.low-power.motion-ready [data-anim],body.low-power [data-anim]{opacity:1!important;transform:none!important}
+  body.canvas-mode{background:var(--paper)}body.canvas-mode canvas.bg{display:none !important}
+  body.canvas-mode .slide{background:var(--paper);padding:0;align-items:stretch;justify-content:stretch}
+
+  body.is-win [style*="font-weight:200"]{font-weight:300 !important}
+</style>
+</head>
+<body class="canvas-mode">
+<script>
+  if(/Win/i.test(navigator.platform||''))document.body.classList.add('is-win');
+  (function(){const K='guizang-ppt-low-power',r=matchMedia('(prefers-reduced-motion:reduce)').matches,s=localStorage.getItem(K);window.__lp=s==='1'||(s===null&&r);function u(){const h=document.getElementById('hint');if(h)h.textContent='← → 翻页 · B '+(window.__lp?'动态':'静态')+' · ESC 索引'}window.__setLP=function(o){window.__lp=!!o;document.body.classList.toggle('low-power',window.__lp);localStorage.setItem(K,window.__lp?'1':'0');u();dispatchEvent(new CustomEvent('swiss-low-power-change',{detail:{on:window.__lp}}));if(window.__playSlide)window.__playSlide(window.__csi||0)};document.body.classList.toggle('low-power',window.__lp);addEventListener('DOMContentLoaded',u,{once:true})})();
+</script>
+<canvas id="bg-grid" class="bg"></canvas>
+<div id="hint">← → 翻页 · B 静态 · ESC 索引</div>
+<div id="deck">
+
+<!-- P1 封面 -->
+<section class="slide accent" data-animate="hero">
+  <div class="canvas-card">
+    <canvas class="ascii-bg" aria-hidden="true"></canvas>
+    <div class="chrome-min"><div class="l">Python ReAct Agent · DESIGN</div><div class="r">SS · 26.05.20 · 01 / 12</div></div>
+    <div style="flex:1;padding:0;display:grid;grid-template-rows:auto 1fr auto;gap:2.6vh">
+      <div data-anim="kicker" class="t-meta" style="color:rgba(255,255,255,.78);letter-spacing:.22em">MEMORY ENHANCEMENT SYSTEM</div>
+      <h1 data-anim="title" style="align-self:center;font-family:var(--sans),var(--sans-zh);font-weight:200;font-size:min(11.6vw,19vh);line-height:.94;letter-spacing:-.025em;color:#fff">记忆增强<br/><span style="font-style:italic;font-weight:300">系统设计</span></h1>
+      <div data-anim="bottom" style="display:grid;grid-template-rows:auto auto;gap:1.6vh;border-top:1px solid rgba(255,255,255,.22);padding-top:2vh">
+        <div data-anim="lead" class="lead" style="max-width:52ch;color:rgba(255,255,255,.86)">Observation + FTS5 + ChromaDB + 晋升机制 — 让 Agent 跨会话记住关键信息</div>
+        <div style="display:flex;justify-content:space-between;align-items:end">
+          <div class="t-meta" style="color:rgba(255,255,255,.6)">LYY · 2026.05.20</div>
+          <div class="t-meta" style="color:rgba(255,255,255,.6)">→ swipe / arrow keys</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- P2 三层架构 -->
+<section class="slide" data-animate="stack-build">
+  <div class="canvas-card">
+    <div class="chrome-min"><div class="l">ARCHITECTURE</div><div class="r">02 / 12</div></div>
+    <div style="flex:1;padding:0;display:grid;grid-template-rows:auto 1fr;gap:2vh">
+      <div data-anim="line" style="display:flex;flex-direction:column;gap:1.4vh">
+        <div class="t-cat">SYSTEM LAYERS</div>
+        <h2 style="font-family:var(--sans),var(--sans-zh);font-weight:200;font-size:min(7vw,12vh);line-height:.96;letter-spacing:-.035em">三层架构</h2>
+      </div>
+      <div class="stack-row">
+        <div class="stack-block b-accent">
+          <div class="layer-nb">LAYER 01</div>
+          <i data-lucide="cpu" class="lucide"></i>
+          <div class="layer-ttl">Agent Core</div>
+          <div class="layer-desc">ReAct Loop 推理循环、工具系统、Session 管理、CLI 交互</div>
+          <div class="layer-tag">loop.py · tools.py · session.py</div>
+        </div>
+        <div class="stack-block b-grey">
+          <div class="layer-nb">LAYER 02</div>
+          <i data-lucide="brain" class="lucide"></i>
+          <div class="layer-ttl">Memory Layer</div>
+          <div class="layer-desc">Observation 提取、混合检索、晋升机制、每日记忆视图</div>
+          <div class="layer-tag">memory_search.py · extractor.py</div>
+        </div>
+        <div class="stack-block b-ink">
+          <div class="layer-nb">LAYER 03</div>
+          <i data-lucide="database" class="lucide"></i>
+          <div class="layer-ttl">Storage</div>
+          <div class="layer-desc">SQLite + FTS5 全文检索、ChromaDB 向量检索、MEMORY.md 长期记忆</div>
+          <div class="layer-tag">observation.py · vectordb.py</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- P3 Agent Loop -->
+<section class="slide" data-animate="loop-form">
+  <div class="canvas-card">
+    <div class="chrome-min"><div class="l">AGENT LOOP</div><div class="r">03 / 12</div></div>
+    <div style="flex:1;padding:0;display:grid;grid-template-rows:auto 1fr;gap:2vh">
+      <div data-anim="line" style="display:flex;flex-direction:column;gap:1.4vh">
+        <div class="t-cat">REACT PATTERN</div>
+        <h2 style="font-family:var(--sans),var(--sans-zh);font-weight:200;font-size:min(7vw,12vh);line-height:.96;letter-spacing:-.035em">推理-行动闭环</h2>
+      </div>
+      <div class="loop-diagram">
+        <div class="loop-steps">
+          <div class="loop-step"><span class="step-num">01</span><div class="step-body"><span class="step-title">用户输入</span><span class="step-desc">追加到 Session.messages</span></div></div>
+          <div class="loop-step"><span class="step-num">02</span><div class="step-body"><span class="step-title">LLM 推理</span><span class="step-desc">调用 LLM.chat() 判断是否需要工具</span></div></div>
+          <div class="loop-step"><span class="step-num">03</span><div class="step-body"><span class="step-title">工具执行</span><span class="step-desc">Function Calling 执行工具，返回结果</span></div></div>
+          <div class="loop-step"><span class="step-num">04</span><div class="step-body"><span class="step-title">结果反馈</span><span class="step-desc">工具结果追加到 messages，继续推理</span></div></div>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:center">
+          <svg viewBox="0 0 300 300" style="width:24vw;height:24vw">
+            <circle cx="150" cy="150" r="120" fill="none" stroke="var(--grey-2)" stroke-width="1.5" stroke-dasharray="6 4"/>
+            <circle cx="150" cy="50" r="8" fill="var(--accent)"/><circle cx="250" cy="150" r="8" fill="var(--ink)"/>
+            <circle cx="150" cy="250" r="8" fill="var(--ink)"/><circle cx="50" cy="150" r="8" fill="var(--ink)"/>
+            <path d="M158,50 Q220,80 248,142" fill="none" stroke="var(--grey-3)" stroke-width="1.2" marker-end="url(#ar)"/>
+            <path d="M250,158 Q220,220 158,248" fill="none" stroke="var(--grey-3)" stroke-width="1.2" marker-end="url(#ar)"/>
+            <path d="M142,250 Q80,220 52,158" fill="none" stroke="var(--grey-3)" stroke-width="1.2" marker-end="url(#ar)"/>
+            <path d="M50,142 Q80,80 142,52" fill="none" stroke="var(--grey-3)" stroke-width="1.2" marker-end="url(#ar)"/>
+            <text x="150" y="145" text-anchor="middle" font-family="var(--sans)" font-size="18" font-weight="200" fill="var(--ink)">ReAct</text>
+            <text x="150" y="168" text-anchor="middle" font-family="var(--sans)" font-size="13" fill="var(--grey-3)">LOOP</text>
+            <text x="150" y="32" text-anchor="middle" font-family="var(--mono)" font-size="11" fill="var(--accent)" letter-spacing=".1em">INPUT</text>
+            <text x="272" y="154" font-family="var(--mono)" font-size="11" fill="var(--grey-3)" letter-spacing=".1em">REASON</text>
+            <text x="150" y="280" text-anchor="middle" font-family="var(--mono)" font-size="11" fill="var(--grey-3)" letter-spacing=".1em">ACT</text>
+            <text x="28" y="154" text-anchor="end" font-family="var(--mono)" font-size="11" fill="var(--grey-3)" letter-spacing=".1em">OBSERVE</text>
+            <defs><marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="var(--grey-3)"/></marker></defs>
+          </svg>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- P4 记忆演进 -->
+<section class="slide" data-animate="duo-mirror">
+  <div class="canvas-card">
+    <div class="chrome-min"><div class="l">MEMORY EVOLUTION</div><div class="r">04 / 12</div></div>
+    <div style="flex:1;padding:0;display:grid;grid-template-rows:auto 1fr;gap:2vh">
+      <div data-anim="line" style="display:flex;flex-direction:column;gap:1.4vh">
+        <div class="t-cat">BEFORE vs AFTER</div>
+        <h2 style="font-family:var(--sans),var(--sans-zh);font-weight:200;font-size:min(6.4vw,11.2vh);line-height:.96;letter-spacing:-.035em">记忆系统演进</h2>
+      </div>
+      <div class="duo-compare">
+        <div class="col">
+          <div class="col-tag"><span class="num">BEFORE</span> 旧方案</div>
+          <div class="col-ttl">MEMORY.md</div>
+          <div class="col-desc">纯文本 Markdown 文件，按分类存储用户偏好和项目约束。</div>
+          <ul class="col-list"><li>人类可读，但不可搜索</li><li>无去重机制，靠 LLM 判断</li><li>无法按类型/概念过滤</li><li>无统计和晋升能力</li></ul>
+        </div>
+        <span class="vrule"></span>
+        <div class="col accent">
+          <div class="col-tag"><span class="num">AFTER</span> 新方案</div>
+          <div class="col-ttl">Observation + 混合检索</div>
+          <div class="col-desc">SQLite 结构化存储 + FTS5 全文检索 + ChromaDB 向量检索。</div>
+          <ul class="col-list"><li>结构化数据，支持多维过滤</li><li>content_hash 去重，ON CONFLICT DO NOTHING</li><li>FTS5 关键词 + 向量语义双路检索</li><li>relevance_count 驱动自动晋升</li></ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- P5 Observation 结构 -->
+<section class="slide" data-animate="grid-reveal">
+  <div class="canvas-card">
+    <div class="chrome-min"><div class="l">OBSERVATION</div><div class="r">05 / 12</div></div>
+    <div style="flex:1;padding:0;display:grid;grid-template-rows:auto 1fr;gap:2vh">
+      <div data-anim="line" style="display:flex;flex-direction:column;gap:1.4vh">
+        <div class="t-cat">DATA MODEL</div>
+        <h2 style="font-family:var(--sans),var(--sans-zh);font-weight:200;font-size:min(6.4vw,11.2vh);line-height:.96;letter-spacing:-.035em">Observation 结构</h2>
+      </div>
+      <div class="sub-grid-3-2">
+        <div class="sub-card"><span class="nb-corner">01</span><i data-lucide="tag" class="lucide"></i><div class="ttl">type</div><div class="desc">bugfix / feature / refactor / change / discovery / decision</div></div>
+        <div class="sub-card"><span class="nb-corner">02</span><i data-lucide="type" class="lucide"></i><div class="ttl">title + narrative</div><div class="desc">一句话标题 + 1-3 段详细描述，构成记忆主体</div></div>
+        <div class="sub-card"><span class="nb-corner">03</span><i data-lucide="list" class="lucide"></i><div class="ttl">facts + concepts</div><div class="desc">关键事实列表 + 概念标签，支撑搜索过滤</div></div>
+        <div class="sub-card"><span class="nb-corner">04</span><i data-lucide="file-text" class="lucide"></i><div class="ttl">files_read / modified</div><div class="desc">涉及的文件路径，支持按文件回溯记忆</div></div>
+        <div class="sub-card"><span class="nb-corner">05</span><i data-lucide="hash" class="lucide"></i><div class="ttl">content_hash</div><div class="desc">SHA-256 去重哈希，UNIQUE 约束防重复插入</div></div>
+        <div class="sub-card accent"><span class="nb-corner" style="color:rgba(255,255,255,.6)">06</span><i data-lucide="trending-up" class="lucide"></i><div class="ttl">relevance_count</div><div class="desc">被检索引用次数，达到阈值自动晋升到 MEMORY.md</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- P6 提取流程 -->
+<section class="slide" data-animate="timeline-walk">
+  <div class="canvas-card">
+    <div class="chrome-min"><div class="l">EXTRACTION</div><div class="r">06 / 12</div></div>
+    <div style="flex:1;padding:0;display:grid;grid-template-rows:auto 1fr auto;gap:2vh">
+      <div data-anim="line" style="display:flex;flex-direction:column;gap:1.4vh">
+        <div class="t-cat">SESSION-END EXTRACTION</div>
+        <h2 style="font-family:var(--sans),var(--sans-zh);font-weight:200;font-size:min(6.4vw,11.2vh);line-height:.96;letter-spacing:-.035em">提取流程</h2>
+      </div>
+      <div class="timeline-h"><div class="tl-row">
+        <div class="th-node up"><div class="label"><span class="yr">STEP 01</span><span class="name">Session 结束</span><span class="desc">/exit 或程序退出</span></div><span class="dot"></span></div>
+        <div class="th-node down accent"><div class="label"><span class="yr">STEP 02</span><span class="name">构建 Prompt</span><span class="desc">对话历史 + 提取指令</span></div><span class="dot"></span></div>
+        <div class="th-node up"><div class="label"><span class="yr">STEP 03</span><span class="name">LLM 提取</span><span class="desc">temperature=0.3</span></div><span class="dot"></span></div>
+        <div class="th-node down accent"><div class="label"><span class="yr">STEP 04</span><span class="name">解析 JSON</span><span class="desc">构建 Observation 对象</span></div><span class="dot"></span></div>
+        <div class="th-node up"><div class="label"><span class="yr">STEP 05</span><span class="name">写入 SQLite</span><span class="desc">ON CONFLICT DO NOTHING</span></div><span class="dot"></span></div>
+        <div class="th-node down accent"><div class="label"><span class="yr">STEP 06</span><span class="name">同步 ChromaDB</span><span class="desc">仅新增条目</span></div><span class="dot"></span></div>
+      </div></div>
+      <div class="t-meta" style="text-align:right">TRIGGER: SESSION END · /exit · /session new</div>
+    </div>
+  </div>
+</section>
+
+<!-- P7 检索架构 -->
+<section class="slide" data-animate="system-diagram">
+  <div class="canvas-card">
+    <div class="chrome-min"><div class="l">SEARCH ARCHITECTURE</div><div class="r">07 / 12</div></div>
+    <div style="flex:1;padding:0;display:grid;grid-template-rows:auto 1fr;gap:3vh">
+      <div data-anim="line" style="display:flex;flex-direction:column;gap:1.4vh">
+        <div class="t-cat">HYBRID RETRIEVAL</div>
+        <h2 style="font-family:var(--sans),var(--sans-zh);font-weight:200;font-size:min(6.4vw,11.2vh);line-height:.96;letter-spacing:-.035em">混合检索架构</h2>
+      </div>
+      <div class="sys-diagram">
+        <div class="sys-layer"><div class="sys-box accent" style="min-width:24vw;padding:2vh 3vw"><div style="font-family:var(--mono);font-size:max(14px,.82vw);letter-spacing:.16em;text-transform:uppercase;opacity:.7;margin-bottom:1vh">INPUT</div><div style="font-size:max(18px,1.4vw);font-weight:300">用户输入 query</div></div></div>
+        <div class="sys-arrow">↓</div>
+        <div class="sys-layer" style="gap:3vw">
+          <div class="sys-box grey" style="flex:1"><div style="font-family:var(--mono);font-size:max(14px,.82vw);letter-spacing:.16em;text-transform:uppercase;color:var(--accent);margin-bottom:1vh">VECTOR</div><div style="font-size:max(16px,1.1vw);font-weight:300">ChromaDB 语义检索</div><div style="font-size:max(14px,.84vw);opacity:.6;margin-top:.6vh">all-MiniLM-L6-v2</div></div>
+          <div class="sys-box grey" style="flex:1"><div style="font-family:var(--mono);font-size:max(14px,.82vw);letter-spacing:.16em;text-transform:uppercase;color:var(--accent);margin-bottom:1vh">KEYWORD</div><div style="font-size:max(16px,1.1vw);font-weight:300">FTS5 全文检索</div><div style="font-size:max(14px,.84vw);opacity:.6;margin-top:.6vh">LIKE 降级 fallback</div></div>
+        </div>
+        <div class="sys-arrow">↓ merge + deduplicate</div>
+        <div class="sys-layer"><div class="sys-box ink" style="min-width:24vw;padding:2vh 3vw"><div style="font-family:var(--mono);font-size:max(14px,.82vw);letter-spacing:.16em;text-transform:uppercase;opacity:.7;margin-bottom:1vh">OUTPUT</div><div style="font-size:max(18px,1.4vw);font-weight:300">Top-N 注入 System Prompt</div></div></div>
+        <div style="display:flex;gap:3vw;margin-top:2vh;justify-content:center">
+          <div style="text-align:center"><div style="font-family:var(--mono);font-size:14px;letter-spacing:.16em;text-transform:uppercase;color:var(--accent)">每轮自动</div><div style="font-size:max(16px,.94vw);opacity:.7;margin-top:.4vh">AgentLoop.run() 入口触发</div></div>
+          <div style="text-align:center"><div style="font-family:var(--mono);font-size:14px;letter-spacing:.16em;text-transform:uppercase;color:var(--accent)">命中追踪</div><div style="font-size:max(16px,.94vw);opacity:.7;margin-top:.4vh">increment_relevance()</div></div>
+          <div style="text-align:center"><div style="font-family:var(--mono);font-size:14px;letter-spacing:.16em;text-transform:uppercase;color:var(--accent)">自动晋升</div><div style="font-size:max(16px,.94vw);opacity:.7;margin-top:.4vh">count >= threshold</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- P8 晋升机制 -->
+<section class="slide" data-animate="duo-mirror">
+  <div class="canvas-card">
+    <div class="chrome-min"><div class="l">PROMOTION</div><div class="r">08 / 12</div></div>
+    <div style="flex:1;padding:0;display:grid;grid-template-rows:auto 1fr;gap:2vh">
+      <div data-anim="line" style="display:flex;flex-direction:column;gap:1.4vh">
+        <div class="t-cat">RELEVANCE-DRIVEN PROMOTION</div>
+        <h2 style="font-family:var(--sans),var(--sans-zh);font-weight:200;font-size:min(6.4vw,11.2vh);line-height:.96;letter-spacing:-.035em">晋升机制</h2>
+      </div>
+      <div class="duo-compare">
+        <div class="col">
+          <div class="col-tag"><span class="num">01</span> 追踪</div>
+          <div class="col-ttl">引用计数</div>
+          <div class="col-desc">每次检索命中 observation 时，relevance_count += 1。高频引用 = 高价值记忆。</div>
+          <ul class="col-list"><li>检索命中自动触发</li><li>阈值可配置（默认 3 次）</li><li>已晋升的不再重复晋升</li></ul>
+        </div>
+        <span class="vrule"></span>
+        <div class="col accent">
+          <div class="col-tag"><span class="num">02</span> 晋升</div>
+          <div class="col-ttl">写入 MEMORY.md</div>
+          <div class="col-desc">LLM 将 observation 压缩为一句话，追加到 MEMORY.md 对应分类。</div>
+          <ul class="col-list"><li>bugfix / decision → 项目约束</li><li>feature / discovery → 历史上下文</li><li>标记 promoted 状态，跳过后续晋升</li></ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- P9 四个新模块 -->
+<section class="slide" data-animate="four-cards">
+  <div class="canvas-card">
+    <div class="chrome-min"><div class="l">NEW MODULES</div><div class="r">09 / 12</div></div>
+    <div style="flex:1;padding:0;display:grid;grid-template-rows:auto 1fr;gap:2vh">
+      <div data-anim="line" style="display:flex;flex-direction:column;gap:1.4vh">
+        <div style="height:3px;background:var(--accent);width:80px"></div>
+        <h2 style="font-family:var(--sans),var(--sans-zh);font-weight:200;font-size:min(6.4vw,11.2vh);line-height:.96;letter-spacing:-.035em">四个新模块</h2>
+      </div>
+      <div class="four-cards">
+        <div class="fc-col"><span class="fc-nb">— 01 / MODULE</span><h3 class="fc-ttl">observation.py</h3><p class="fc-desc">SQLite 存储层 + FTS5 虚拟表 + 自动同步触发器 + 去重逻辑</p></div>
+        <div class="fc-col"><span class="fc-nb">— 02 / MODULE</span><h3 class="fc-ttl">vectordb.py</h3><p class="fc-desc">ChromaDB 封装 + 本地 Embedding (all-MiniLM-L6-v2) + 启动补全</p></div>
+        <div class="fc-col"><span class="fc-nb">— 03 / MODULE</span><h3 class="fc-ttl">memory_search.py</h3><p class="fc-desc">混合检索编排 + relevance_count 追踪 + 自动晋升到 MEMORY.md</p></div>
+        <div class="fc-col"><span class="fc-nb">— 04 / MODULE</span><h3 class="fc-ttl">extractor.py</h3><p class="fc-desc">LLM 提取 Prompt + JSON 解析 + Session 结束时自动触发</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- P10 实现路线图 -->
+<section class="slide" data-animate="progression">
+  <div class="canvas-card">
+    <div class="chrome-min"><div class="l">ROADMAP</div><div class="r">10 / 12</div></div>
+    <div style="flex:1;padding:0;display:grid;grid-template-rows:auto 1fr;gap:2vh">
+      <div data-anim="line" style="display:flex;flex-direction:column;gap:1.4vh">
+        <div class="t-cat">IMPLEMENTATION PHASES</div>
+        <h2 style="font-family:var(--sans),var(--sans-zh);font-weight:200;font-size:min(6.4vw,11.2vh);line-height:.96;letter-spacing:-.035em">实现路线图</h2>
+      </div>
+      <div class="timeline-v">
+        <div class="tl-node accent"><div class="tl-axis"><span class="dot"></span></div><div class="yr">PHASE 6</div><div class="multi">Observation<span class="unit">层</span></div><div class="desc">SQLite schema + FTS5 虚拟表 + ObservationStore + CLI /memory stats</div></div>
+        <div class="tl-node"><div class="tl-axis"><span class="dot"></span></div><div class="yr">PHASE 7</div><div class="multi">向量<span class="unit">检索</span></div><div class="desc">ChromaDB + EmbeddingModel + 混合检索编排 + 每轮自动注入</div></div>
+        <div class="tl-node accent"><div class="tl-axis"><span class="dot"></span></div><div class="yr">PHASE 8</div><div class="multi">提取<span class="unit">系统</span></div><div class="desc">LLM 提取 Prompt + Session 结束触发 + CLI /memory search</div></div>
+        <div class="tl-node"><div class="tl-axis"><span class="dot"></span></div><div class="yr">PHASE 9</div><div class="multi">晋升 + <span class="unit">每日</span></div><div class="desc">relevance_count 晋升 + 每日记忆视图 + CLI /memory today</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- P11 设计决策 -->
+<section class="slide" data-animate="statement-rise">
+  <div class="canvas-card">
+    <div class="chrome-min"><div class="l">DESIGN DECISIONS</div><div class="r">11 / 12</div></div>
+    <div style="flex:1;padding:0;display:grid;grid-template-rows:1fr auto;gap:2vh">
+      <div style="display:flex;flex-direction:column;justify-content:center;gap:4vh">
+        <h1 style="font-family:var(--sans),var(--sans-zh);font-weight:200;font-size:min(7.4vw,13vh);line-height:1;letter-spacing:-.04em">SQLite 是<span style="font-style:italic;font-weight:300">主存储</span><br/>检索是<span style="font-style:italic;font-weight:300">检索层</span><br/>MEMORY.md 是<span style="font-style:italic;font-weight:300">展示层</span></h1>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:2vw;max-width:80vw">
+          <div style="border-top:2px solid var(--accent);padding-top:1.6vh"><div class="t-cat" style="color:var(--accent)">STORAGE</div><div style="font-size:max(16px,.94vw);opacity:.78;margin-top:.6vh;line-height:1.5">SQLite + FTS5 支持结构化查询、去重、统计</div></div>
+          <div style="border-top:2px solid var(--ink);padding-top:1.6vh"><div class="t-cat">RETRIEVAL</div><div style="font-size:max(16px,.94vw);opacity:.78;margin-top:.6vh;line-height:1.5">ChromaDB 语义 + FTS5 关键词，双路互补</div></div>
+          <div style="border-top:2px solid var(--grey-3);padding-top:1.6vh"><div class="t-cat" style="color:var(--grey-3)">PRESENTATION</div><div style="font-size:max(16px,.94vw);opacity:.78;margin-top:.6vh;line-height:1.5">MEMORY.md 人类可读，晋升后的最终归宿</div></div>
+        </div>
+      </div>
+      <div class="t-meta" style="text-align:right">REFERENCE: CLAUDE-MEM / OPENCLAW ARCHITECTURE</div>
+    </div>
+  </div>
+</section>
+
+<!-- P12 收束 -->
+<section class="slide split" data-animate="split-statement">
+  <div class="canvas-card">
+    <div class="split-half">
+      <div class="half b-accent" style="padding:5.6vh 3.6vw 4.4vh;justify-content:space-between;position:relative;overflow:hidden">
+        <canvas class="ascii-bg" aria-hidden="true"></canvas>
+        <div class="chrome-min" style="margin-bottom:0;position:relative;z-index:1"><div class="l">12 / 12</div><div class="r">CLOSING</div></div>
+        <div data-anim="manifesto" style="display:flex;flex-direction:column;gap:2vh;position:relative;z-index:1">
+          <div class="t-meta" style="color:rgba(255,255,255,.78);letter-spacing:.22em;margin-bottom:1.6vh">MANIFESTO</div>
+          <h2 style="font-family:var(--sans),var(--sans-zh);font-size:min(8vw,14vh);line-height:.94;letter-spacing:-.025em;font-weight:200;color:#fff">Remember<br/><span style="font-style:italic;font-weight:300">everything</span>.<br/>Forget <span style="font-style:italic;font-weight:300">nothing</span>.</h2>
+          <div style="font-family:var(--sans),var(--sans-zh);font-size:max(14px,1vw);line-height:1.6;color:rgba(255,255,255,.82);font-weight:400;max-width:36ch;margin-top:1.4vh">结构化记忆让 Agent 从"每次从零开始"进化为"持续积累认知"。</div>
+        </div>
+        <div data-anim="signature" style="display:flex;justify-content:space-between;align-items:end;border-top:1px solid rgba(255,255,255,.22);padding-top:2vh;position:relative;z-index:1">
+          <div class="t-meta" style="color:rgba(255,255,255,.62)">LYY · CS Student</div>
+          <div class="t-meta" style="color:rgba(255,255,255,.62)">26.05.20</div>
+        </div>
+      </div>
+      <div class="half" style="padding:5.6vh 3.6vw 4.4vh;justify-content:space-between">
+        <div class="chrome-min"><div class="l">TAKEAWAYS</div><div class="r">03 RULES</div></div>
+        <div data-anim="rules" style="display:flex;flex-direction:column;gap:0">
+          <div style="display:grid;grid-template-columns:auto 1fr;gap:2vw;align-items:start;padding:2.6vh 0;border-top:1px solid var(--border-subtle)">
+            <div style="font-family:var(--sans);font-weight:200;font-size:min(4.4vw,7.8vh);line-height:.9;color:var(--text-primary)">01</div>
+            <div><h3 style="font-family:var(--sans),var(--sans-zh);font-weight:400;font-size:max(18px,1.8vw);line-height:1.2;letter-spacing:-.015em;margin-bottom:1vh">Observation 是记忆的原子单元</h3><p style="font-family:var(--sans),var(--sans-zh);font-size:max(16px,.94vw);line-height:1.6;color:var(--text-secondary);font-weight:400">结构化存储 + 去重 + 多维检索，替代纯文本 MEMORY.md。</p></div>
+          </div>
+          <div style="display:grid;grid-template-columns:auto 1fr;gap:2vw;align-items:start;padding:2.6vh 0;border-top:1px solid var(--border-subtle)">
+            <div style="font-family:var(--sans);font-weight:200;font-size:min(4.4vw,7.8vh);line-height:.9;color:var(--text-primary)">02</div>
+            <div><h3 style="font-family:var(--sans),var(--sans-zh);font-weight:400;font-size:max(18px,1.8vw);line-height:1.2;letter-spacing:-.015em;margin-bottom:1vh">FTS5 + 向量 = 互补检索</h3><p style="font-family:var(--sans),var(--sans-zh);font-size:max(16px,.94vw);line-height:1.6;color:var(--text-secondary);font-weight:400">关键词精确匹配 + 语义模糊匹配，fallback 链保证可用性。</p></div>
+          </div>
+          <div style="display:grid;grid-template-columns:auto 1fr;gap:2vw;align-items:start;padding:2.6vh 0;border-top:1px solid var(--border-subtle);border-bottom:2px solid var(--accent)">
+            <div style="font-family:var(--sans);font-weight:200;font-size:min(4.4vw,7.8vh);line-height:.9;color:var(--accent)">03</div>
+            <div><h3 style="font-family:var(--sans),var(--sans-zh);font-weight:400;font-size:max(18px,1.8vw);line-height:1.2;letter-spacing:-.015em;color:var(--accent);margin-bottom:1vh">引用驱动晋升，自然遗忘</h3><p style="font-family:var(--sans),var(--sans-zh);font-size:max(16px,.94vw);line-height:1.6;color:var(--text-secondary);font-weight:400">高频记忆自动晋升到长期记忆，低频记忆自然沉底。</p></div>
+          </div>
+        </div>
+        <div data-anim="foot" class="t-meta" style="color:var(--text-helper);text-align:right">→ 完 · END OF DESIGN REVIEW</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+</div>
+<div id="nav"></div>
+
+<script>
+const deck=document.getElementById('deck'),slides=deck.querySelectorAll('.slide'),nav=document.getElementById('nav');
+let idx=0,total=slides.length,lock=false;
+deck.style.width=(total*100)+'vw';
+slides.forEach((s,i)=>{const b=document.createElement('button');b.className='dot';b.dataset.i=i;b.setAttribute('aria-label','Page '+(i+1));b.onclick=()=>go(i);nav.appendChild(b)});
+function go(n){if(lock)return;idx=Math.max(0,Math.min(total-1,n));window.__csi=idx;deck.style.transform=`translateX(${-idx*100}vw)`;nav.querySelectorAll('.dot').forEach((d,i)=>d.classList.toggle('active',i===idx));const el=slides[idx];document.body.classList.toggle('dark-bg',el.classList.contains('dark')||el.classList.contains('accent'));if(window.__playSlide)setTimeout(()=>window.__playSlide(idx),450);lock=true;setTimeout(()=>lock=false,700)}
+let ovOn=false;const ov=document.createElement('div');ov.id='overview';ov.style.cssText='position:fixed;inset:0;z-index:100;background:rgba(250,250,248,.96);backdrop-filter:blur(12px);display:none;overflow-y:auto;padding:4vh 4vw';document.body.appendChild(ov);
+function buildOv(){ov.innerHTML='';const g=document.createElement('div');g.style.cssText='display:grid;grid-template-columns:repeat(4,1fr);gap:2vh 1.6vw;max-width:90vw;margin:0 auto';slides.forEach((s,i)=>{const c=document.createElement('div');c.style.cssText='cursor:pointer;overflow:hidden;border:2px solid '+(i===idx?'var(--accent)':'rgba(0,0,0,.12)')+'';c.onmouseenter=()=>c.style.borderColor='rgba(0,0,0,.4)';c.onmouseleave=()=>c.style.borderColor=i===idx?'var(--accent)':'rgba(0,0,0,.12)';const w=document.createElement('div');const dk=s.classList.contains('dark')||s.classList.contains('accent');w.style.cssText='width:100%;aspect-ratio:16/9;overflow:hidden;position:relative;pointer-events:none;background:'+(dk?'var(--ink)':'var(--paper)');const cl=s.cloneNode(true);cl.style.cssText='width:100vw;height:100vh;transform:scale('+(1/4.5)+');transform-origin:top left;position:absolute;top:0;left:0;pointer-events:none';w.appendChild(cl);const l=document.createElement('div');l.style.cssText='padding:6px 10px;font-family:var(--mono);font-size:14px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink);opacity:.7';l.textContent=(i+1)+' / '+total;c.appendChild(w);c.appendChild(l);c.onclick=()=>{toggleOv();go(i)};g.appendChild(c)});ov.appendChild(g)}
+function toggleOv(){ovOn=!ovOn;if(ovOn){buildOv();ov.style.display='block'}else{ov.style.display='none'}}
+addEventListener('keydown',e=>{if(e.key==='Escape'){e.preventDefault();toggleOv();return}if(e.key&&e.key.toLowerCase()==='b'&&!e.metaKey&&!e.ctrlKey&&!e.altKey){e.preventDefault();window.__setLP(!window.__lp);return}if(ovOn)return;if(e.key==='ArrowRight'||e.key==='PageDown'||e.key===' '||e.key==='ArrowDown'){go(idx+1);return}if(e.key==='ArrowLeft'||e.key==='PageUp'||e.key==='ArrowUp')go(idx-1);if(e.key==='Home')go(0);if(e.key==='End')go(total-1)});
+let wTO=null,wA=0;addEventListener('wheel',e=>{wA+=e.deltaY+e.deltaX;if(Math.abs(wA)>50){go(idx+(wA>0?1:-1));wA=0}clearTimeout(wTO);wTO=setTimeout(()=>wA=0,150)},{passive:true});
+let tx=0,ty=0;addEventListener('touchstart',e=>{tx=e.touches[0].clientX;ty=e.touches[0].clientY},{passive:true});addEventListener('touchend',e=>{const dx=e.changedTouches[0].clientX-tx,dy=e.changedTouches[0].clientY-ty;if(Math.abs(dx)>50&&Math.abs(dx)>Math.abs(dy))go(idx+(dx<0?1:-1))},{passive:true});
+const sp=new URLSearchParams(location.search).get('slide');go(sp?Number(sp)-1:0);
+</script>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>lucide.createIcons();</script>
+<script type="module">
+let motion;try{motion=await import('https://cdn.jsdelivr.net/npm/motion@11.11.17/+esm')}catch(e){document.querySelectorAll('[data-anim]').forEach(el=>{el.style.opacity='1';el.style.transform='none'})}
+if(motion){const{animate}=motion;document.body.classList.add('motion-ready');const EP=[0,0,.3,1],PP=[.2,0,.38,.9];const S=[...document.querySelectorAll('.slide')];const fade=(el,o={})=>animate(el,{opacity:[0,1],y:[o.y??12,0]},{duration:o.d??.6,delay:o.delay??0,easing:EP});
+function rH(s){const c=s.querySelector('.chrome-min');if(c)animate(c,{opacity:[0,1]},{duration:.24,easing:PP});const t=s.querySelector('[data-anim="title"]');if(t)animate(t,{opacity:[0,1],y:[24,0]},{duration:.8,delay:.2,easing:EP});const k=s.querySelector('[data-anim="kicker"]');if(k)animate(k,{opacity:[0,1],x:[-12,0]},{duration:.5,delay:.1,easing:EP});const b=s.querySelector('[data-anim="bottom"]');if(b)animate(b,{opacity:[0,1],y:[12,0]},{duration:.6,delay:.6,easing:EP})}
+function rP(s){const h=s.querySelector('[data-anim="line"]');if(h)fade(h,{d:.6,y:10});s.querySelectorAll('.tl-node').forEach((n,i)=>{const d=.35+i*.32;animate(n,{opacity:[0,1],y:[14,0]},{duration:.55,delay:d,easing:EP});const m=n.querySelector('.multi');if(m)animate(m,{scale:[.92,1],opacity:[0,1]},{duration:.5,delay:d+.12,easing:EP})})}
+function rSt(s){const h=s.querySelector('[data-anim="line"]');if(h)fade(h,{d:.5,y:6});[...s.querySelectorAll('[data-anim]')].filter(el=>el.dataset.anim!=='line').forEach((el,i)=>animate(el,{opacity:[0,1],y:[20,0]},{duration:.55,delay:.25+i*.18,easing:EP}))}
+function rG(s){const h=s.querySelector('[data-anim="line"]');if(h)fade(h,{d:.6,y:10});s.querySelectorAll('.sub-card').forEach((c,i)=>animate(c,{opacity:[0,1],y:[20,0],scale:[.96,1]},{duration:.5,delay:.3+i*.09,easing:EP}))}
+function rSB(s){const h=s.querySelector('[data-anim="line"]');if(h)fade(h,{d:.6,y:10});const b=[...s.querySelectorAll('.stack-block')];if(b[1])animate(b[1],{opacity:[0,1],scaleY:[.85,1]},{duration:.55,delay:.3,easing:EP});if(b[0])animate(b[0],{opacity:[0,1],y:[-22,0]},{duration:.6,delay:.6,easing:EP});if(b[2])animate(b[2],{opacity:[0,1],y:[22,0]},{duration:.6,delay:.6,easing:EP})}
+function rD(s){const h=s.querySelector('[data-anim="line"]');if(h)fade(h,{d:.6,y:10});const c=[...s.querySelectorAll('.duo-compare .col')],v=s.querySelector('.duo-compare .vrule');if(c[0])animate(c[0],{opacity:[0,1],x:[-24,0]},{duration:.65,delay:.4,easing:EP});if(v){v.style.transformOrigin='center';animate(v,{opacity:[0,1],scaleY:[0,1]},{duration:.55,delay:.55,easing:EP})}if(c[1])animate(c[1],{opacity:[0,1],x:[24,0]},{duration:.65,delay:.7,easing:EP})}
+function rTW(s){const h=s.querySelector('[data-anim="line"]');if(h)fade(h,{d:.55,y:10});const tl=s.querySelector('.timeline-h');if(tl)animate(tl,{opacity:[0,1]},{duration:.4,delay:.35,easing:PP});s.querySelectorAll('.timeline-h .th-node').forEach((n,i)=>{const d=.55+i*.18,dt=n.querySelector('.dot'),l=n.querySelector('.label');if(dt){dt.style.transformOrigin='center';animate(dt,{opacity:[0,1],scale:[.2,1]},{duration:.45,delay:d,easing:EP})}if(l)animate(l,{opacity:[0,1],transform:[`translate(-50%,${n.classList.contains('up')?8:-8}px)`,'translate(-50%,0px)']},{duration:.5,delay:d+.12,easing:EP})})}
+function rLF(s){const h=s.querySelector('[data-anim="line"]');if(h)fade(h,{d:.55,y:10});s.querySelectorAll('.loop-step').forEach((st,i)=>animate(st,{opacity:[0,1],x:[-18,0]},{duration:.5,delay:.5+i*.14,easing:EP}));const svg=s.querySelector('svg');if(svg){[...svg.querySelectorAll('circle')].slice(1).forEach((c,i)=>{c.style.transformOrigin=`${c.getAttribute('cx')}px ${c.getAttribute('cy')}px`;animate(c,{opacity:[0,1],scale:[.4,1]},{duration:.45,delay:.7+i*.16,easing:EP})});svg.querySelectorAll('path[marker-end]').forEach((p,i)=>animate(p,{opacity:[0,1]},{duration:.4,delay:.85+i*.16,easing:PP}))}}
+function rFC(s){const r=s.querySelector('[data-anim="line"] > div:first-child');if(r){r.style.transformOrigin='left center';animate(r,{opacity:[0,1],scaleX:[0,1]},{duration:.5,delay:.1,easing:EP})}const h=s.querySelector('[data-anim="line"]');if(h){const t=h.querySelector(':scope > div:nth-child(2)');if(t)animate(t,{opacity:[0,1],y:[14,0]},{duration:.55,delay:.4,easing:EP})}s.querySelectorAll('.fc-col').forEach((c,i)=>animate(c,{opacity:[0,1],y:[18,0]},{duration:.55,delay:.7+i*.13,easing:EP}))}
+function rSD(s){const h=s.querySelector('[data-anim="line"]');if(h)fade(h,{d:.55,y:10});s.querySelectorAll('.sys-box').forEach((b,i)=>animate(b,{opacity:[0,1],y:[14,0]},{duration:.5,delay:.4+i*.15,easing:EP}));s.querySelectorAll('.sys-arrow').forEach((a,i)=>animate(a,{opacity:[0,1]},{duration:.3,delay:.7+i*.2,easing:PP}))}
+function rSS(s){const hs=[...s.querySelectorAll('.half')];if(hs[0]){animate(hs[0],{opacity:[0,1]},{duration:.4,easing:PP});const h2=hs[0].querySelector('h2');if(h2)animate(h2,{opacity:[0,1],y:[24,0]},{duration:.7,delay:.25,easing:EP})}if(hs[1]){animate(hs[1],{opacity:[0,1]},{duration:.4,delay:.3,easing:PP});hs[1].querySelectorAll('[data-anim="rules"] > div').forEach((li,i)=>animate(li,{opacity:[0,1],x:[20,0]},{duration:.45,delay:1+i*.12,easing:EP}))}}
+const R={hero:rH,progression:rP,'statement-rise':rSt,'grid-reveal':rG,'stack-build':rSB,'duo-mirror':rD,'timeline-walk':rTW,'loop-form':rLF,'four-cards':rFC,'system-diagram':rSD,'split-statement':rSS};
+function play(i){const s=S[i];if(!s)return;if(window.__lp){s.querySelectorAll('[data-anim]').forEach(el=>{el.style.opacity='1';el.style.transform='none'});return}s.querySelectorAll('[data-anim]').forEach(el=>{el.style.opacity='1';el.style.transform='none'});const a=[...s.querySelectorAll('[data-anim]')],fn=R[s.dataset.animate];if(fn){fn(s,a);return}if(a.length)animate(a,{opacity:[0,1],y:[12,0]},{duration:.6,delay:j=>j*.08,easing:EP})}
+window.__playSlide=play;play(window.__csi||0)}
+</script>
+<script>
+(function(){const C=[...document.querySelectorAll('canvas.ascii-bg')];if(!C.length)return;const P='   ...:::---+++***◦◦••▢▣',CL=16,FS=13;function setup(c){const d=Math.min(devicePixelRatio||1,2),r=c.getBoundingClientRect();if(r.width<4||r.height<4)return;c.width=Math.round(r.width*d);c.height=Math.round(r.height*d);c.__w=r.width;c.__h=r.height;const x=c.getContext('2d');x.setTransform(d,0,0,d,0,0);const m=(getComputedStyle(document.documentElement).getPropertyValue('--mono')||'monospace').trim();x.font=`500 ${FS}px ${m}`;x.textBaseline='top';c.__x=x;return true}
+function draw(c,t){if(!c.__x)return;const x=c.__x,w=c.__w,h=c.__h;x.clearRect(0,0,w,h);const co=Math.ceil(w/CL),ro=Math.ceil(h/CL);for(let r=0;r<ro;r++)for(let cc=0;cc<co;cc++){const n=(Math.sin(cc*.18+t)+Math.sin(r*.24-t*.7)+Math.sin((cc+r)*.12+t*.45)+Math.sin(Math.hypot(cc-co*.5,r-ro*.5)*.16-t*.55))/4;const v=(n+1)/2;if(v<.22)continue;const i=Math.min(P.length-1,Math.floor(v*P.length)),ch=P[i];if(ch===' ')continue;x.fillStyle=`rgba(255,255,255,${(.08+(v-.22)*.55).toFixed(3)})`;x.fillText(ch,cc*CL,r*CL)}}
+function rA(){C.forEach(setup)}let pd=null;addEventListener('resize',()=>{if(!window.__lp){if(pd)cancelAnimationFrame(pd);pd=requestAnimationFrame(rA)}},{passive:true});
+let t0=performance.now(),fr=0,af=0,run=false;function tick(now){if(!run||window.__lp){run=false;af=0;return}const t=(now-t0)/1000*.55;fr++;C.forEach(c=>{const s=c.closest('.slide'),r=s?s.getBoundingClientRect():null;if(!(r&&r.right>0&&r.left<innerWidth)&&(fr&3))return;draw(c,t)});af=requestAnimationFrame(tick)}
+function start(){if(run||window.__lp)return;rA();t0=performance.now();fr=0;run=true;af=requestAnimationFrame(tick)}
+function stop(){run=false;if(af)cancelAnimationFrame(af);if(pd)cancelAnimationFrame(pd);af=0;pd=null;C.forEach(c=>{if(c.__x)c.__x.clearRect(0,0,c.__w||0,c.__h||0)})}
+addEventListener('swiss-low-power-change',e=>{e.detail.on?stop():start()});start()})();
+</script>
+</body>
+</html>

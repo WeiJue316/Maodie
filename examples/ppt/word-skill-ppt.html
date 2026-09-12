@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Word Skill - 文档处理的艺术</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;700;900&family=Noto+Sans+SC:wght@300;400;700;900&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-primary: #000;
+      --bg-secondary: #111;
+      --text-primary: #fff;
+      --text-secondary: #888;
+      --accent: #0af;
+      --accent-secondary: #f0a;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Noto Sans SC', 'Inter', sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      overflow: hidden;
+      height: 100vh;
+      width: 100vw;
+    }
+    .presentation {
+      width: 100%;
+      height: 100%;
+      position: relative;
+    }
+    .slide {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      padding: 60px;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.5s ease, transform 0.5s ease;
+      transform: translateX(30px);
+    }
+    .slide.active {
+      opacity: 1;
+      visibility: visible;
+      transform: translateX(0);
+    }
+    .slide-number {
+      position: absolute;
+      bottom: 30px;
+      right: 40px;
+      font-size: 14px;
+      color: var(--text-secondary);
+      font-weight: 300;
+    }
+    .orb {
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(80px);
+      opacity: 0.4;
+      pointer-events: none;
+    }
+    .orb-1 { width: 300px; height: 300px; background: #0af; top: -100px; right: -100px; }
+    .orb-2 { width: 200px; height: 200px; background: #f0a; bottom: -50px; left: -50px; }
+    .orb-3 { width: 250px; height: 250px; background: #0f0; top: 50%; left: 50%; transform: translate(-50%, -50%); opacity: 0.2; }
+    
+    h1 {
+      font-size: 72px;
+      font-weight: 900;
+      text-align: center;
+      line-height: 1.1;
+      margin-bottom: 30px;
+    }
+    h2 {
+      font-size: 48px;
+      font-weight: 700;
+      text-align: center;
+      line-height: 1.2;
+      margin-bottom: 40px;
+    }
+    .subtitle {
+      font-size: 24px;
+      font-weight: 300;
+      color: var(--text-secondary);
+      text-align: center;
+    }
+    .content {
+      max-width: 900px;
+      text-align: center;
+    }
+    .feature-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 30px;
+      max-width: 1000px;
+      width: 100%;
+    }
+    .feature-card {
+      background: rgba(255,255,255,0.05);
+      border-radius: 16px;
+      padding: 30px;
+      text-align: left;
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+    .feature-card h3 {
+      font-size: 24px;
+      font-weight: 700;
+      margin-bottom: 12px;
+      color: var(--accent);
+    }
+    .feature-card p {
+      font-size: 16px;
+      font-weight: 300;
+      color: var(--text-secondary);
+      line-height: 1.6;
+    }
+    .highlight {
+      color: var(--accent);
+    }
+    .code-block {
+      background: rgba(0,170,255,0.1);
+      border: 1px solid rgba(0,170,255,0.3);
+      border-radius: 12px;
+      padding: 20px 30px;
+      font-family: 'Inter', monospace;
+      font-size: 18px;
+      margin: 20px 0;
+    }
+    .list-item {
+      font-size: 22px;
+      font-weight: 400;
+      margin: 16px 0;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .list-item::before {
+      content: '→';
+      color: var(--accent);
+      font-weight: 700;
+    }
+    .emoji {
+      font-size: 64px;
+      margin-bottom: 20px;
+    }
+    .comparison {
+      display: flex;
+      gap: 40px;
+      margin-top: 20px;
+    }
+    .comparison-item {
+      flex: 1;
+      padding: 30px;
+      border-radius: 16px;
+      text-align: center;
+    }
+    .comparison-item.bad {
+      background: rgba(255,0,0,0.1);
+      border: 1px solid rgba(255,0,0,0.3);
+    }
+    .comparison-item.good {
+      background: rgba(0,255,0,0.1);
+      border: 1px solid rgba(0,255,0,0.3);
+    }
+    .comparison-item h4 {
+      font-size: 20px;
+      margin-bottom: 12px;
+    }
+    .comparison-item.bad h4 { color: #f55; }
+    .comparison-item.good h4 { color: #5f5; }
+    .comparison-item p {
+      font-size: 14px;
+      color: var(--text-secondary);
+    }
+    .footer-text {
+      position: absolute;
+      bottom: 80px;
+      font-size: 16px;
+      color: var(--text-secondary);
+      font-weight: 300;
+    }
+    .badge {
+      display: inline-block;
+      background: var(--accent);
+      color: #000;
+      padding: 6px 16px;
+      border-radius: 20px;
+      font-size: 14px;
+      font-weight: 700;
+      margin-bottom: 20px;
+    }
+    .version {
+      font-size: 18px;
+      color: var(--text-secondary);
+      margin-top: 30px;
+    }
+    @media (max-width: 768px) {
+      h1 { font-size: 48px; }
+      h2 { font-size: 36px; }
+      .feature-grid { grid-template-columns: 1fr; }
+      .slide { padding: 40px 30px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="presentation">
+    <!-- Slide 1: 封面 -->
+    <div class="slide active" id="slide-1">
+      <div class="orb orb-1"></div>
+      <div class="orb orb-2"></div>
+      <div class="emoji">📘</div>
+      <h1>Word Skill</h1>
+      <p class="subtitle">Microsoft Word 文档处理的艺术</p>
+      <p class="version">v1.0.2 · 跨平台支持</p>
+    </div>
+
+    <!-- Slide 2: 什么时候用 -->
+    <div class="slide" id="slide-2">
+      <div class="orb orb-1"></div>
+      <div class="orb orb-3"></div>
+      <span class="badge">适用场景</span>
+      <h2>什么时候使用<br>Word Skill？</h2>
+      <div class="content">
+        <div class="list-item">创建 .docx 文件作为主要交付物</div>
+        <div class="list-item">需要精确的样式和编号系统</div>
+        <div class="list-item">文档包含页眉页脚、目录、页码</div>
+        <div class="list-item">涉及批注、修订追踪和评论</div>
+        <div class="list-item">需要在不同编辑器间保持兼容</div>
+      </div>
+    </div>
+
+    <!-- Slide 3: 核心原则 -->
+    <div class="slide" id="slide-3">
+      <div class="orb orb-2"></div>
+      <div class="orb orb-3"></div>
+      <span class="badge">核心原则</span>
+      <h2>把 DOCX 当作<br><span class="highlight">OOXML</span> 来对待</h2>
+      <div class="content">
+        <p class="subtitle" style="max-width: 700px; line-height: 1.8;">
+          .docx 文件是一个 ZIP 包，<br>
+          包含多个 XML 文件和资源文件。<br>
+          <strong>结构的重要性不亚于可见文本。</strong>
+        </p>
+      </div>
+      <p class="footer-text">文本可能分散在多个 XML 节点中</p>
+    </div>
+
+    <!-- Slide 4: 样式系统 -->
+    <div class="slide" id="slide-4">
+      <div class="orb orb-1"></div>
+      <div class="orb orb-2"></div>
+      <span class="badge">样式管理</span>
+      <h2>优先使用<br><span class="highlight">命名样式</span></h2>
+      <div class="content">
+        <div class="comparison">
+          <div class="comparison-item bad">
+            <h4>✗ 直接格式</h4>
+            <p>直接加粗、设置颜色<br>文档难以维护和批量修改</p>
+          </div>
+          <div class="comparison-item good">
+            <h4>✓ 命名样式</h4>
+            <p>标题、正文、引用...<br>一次修改，全局生效</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Slide 5: 列表和编号 -->
+    <div class="slide" id="slide-5">
+      <div class="orb orb-3"></div>
+      <span class="badge">编号系统</span>
+      <h2>列表编号是<br><span class="highlight">独立的系统</span></h2>
+      <div class="content">
+        <div class="list-item">项目符号和编号属于 Word 的编号定义</div>
+        <div class="list-item">不是简单的 Unicode 字符</div>
+        <div class="list-item">abstractNum、num、段落属性三者协同</div>
+        <div class="list-item">"看起来对"不等于编号状态正确</div>
+      </div>
+    </div>
+
+    <!-- Slide 6: 页面布局 -->
+    <div class="slide" id="slide-6">
+      <div class="orb orb-1"></div>
+      <div class="orb orb-2"></div>
+      <span class="badge">页面布局</span>
+      <h2>布局由<br><span class="highlight">节 (Section)</span> 控制</h2>
+      <div class="content">
+        <div class="list-item">页边距、方向、页眉页脚</div>
+        <div class="list-item">首页不同 / 奇偶页不同</div>
+        <div class="list-item">使用节分隔符切换布局</div>
+        <div class="list-item">手动空格会导致排版漂移</div>
+      </div>
+    </div>
+
+    <!-- Slide 7: 修订和批注 -->
+    <div class="slide" id="slide-7">
+      <div class="orb orb-3"></div>
+      <span class="badge">协作功能</span>
+      <h2>修订、批注、域<br><span class="highlight">需要精确编辑</span></h2>
+      <div class="content">
+        <div class="list-item">可见文本 ≠ 完整文档</div>
+        <div class="list-item">删除的文本可能仍存在于 XML 中</div>
+        <div class="list-item">批注锚点和修订范围容易断裂</div>
+        <div class="list-item">目录、页码是域，会缓存旧值</div>
+      </div>
+    </div>
+
+    <!-- Slide 8: 避坑指南 -->
+    <div class="slide" id="slide-8">
+      <div class="orb orb-1"></div>
+      <div class="orb orb-2"></div>
+      <span class="badge">避坑指南</span>
+      <h2>常见陷阱</h2>
+      <div class="feature-grid">
+        <div class="feature-card">
+          <h3>复制粘贴</h3>
+          <p>会悄悄带入不需要的样式和编号定义</p>
+        </div>
+        <div class="feature-card">
+          <h3>空段落间距</h3>
+          <p>用空行撑间距很脆弱，应设置段落间距</p>
+        </div>
+        <div class="feature-card">
+          <h3>表格自动适应</h3>
+          <p>在 LibreOffice/Google Docs 可能错位</p>
+        </div>
+        <div class="feature-card">
+          <h3>整段替换</h3>
+          <p>可能破坏书签、批注、修订标记</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Slide 9: 兼容性 -->
+    <div class="slide" id="slide-9">
+      <div class="orb orb-3"></div>
+      <span class="badge">跨平台兼容</span>
+      <h2>交付前<br><span class="highlight">验证兼容性</span></h2>
+      <div class="content">
+        <p class="subtitle" style="line-height: 2;">
+          Word → LibreOffice → Google Docs<br>
+          表格、页眉、嵌入字体是常见漂移源<br><br>
+          <strong style="color: #0af;">.docm</strong> 含有宏，高风险<br>
+          <strong style="color: #f0a;">.doc</strong> 是旧格式，可能需要转换
+        </p>
+      </div>
+    </div>
+
+    <!-- Slide 10: 使用方法 -->
+    <div class="slide" id="slide-10">
+      <div class="orb orb-1"></div>
+      <div class="orb orb-2"></div>
+      <span class="badge">使用方法</span>
+      <h2>快速开始</h2>
+      <div class="code-block">
+        当需要创建或编辑 Word 文档时<br>
+        任务描述 + .docx 文件即可
+      </div>
+      <p class="subtitle" style="margin-top: 30px;">
+        Skill 会自动处理：<br>
+        结构 · 样式 · 编号 · 布局 · 兼容性
+      </p>
+    </div>
+
+    <!-- Slide 11: 结束 -->
+    <div class="slide" id="slide-11">
+      <div class="orb orb-1"></div>
+      <div class="orb orb-2"></div>
+      <div class="orb orb-3"></div>
+      <h1>Word Skill</h1>
+      <p class="subtitle">让文档处理更专业、更可靠</p>
+      <div style="margin-top: 40px; display: flex; gap: 20px; justify-content: center;">
+        <div class="feature-card" style="text-align: center; padding: 20px;">
+          <div style="font-size: 32px;">📘</div>
+          <p style="margin: 0; font-size: 14px;">clawhub star word-docx</p>
+        </div>
+        <div class="feature-card" style="text-align: center; padding: 20px;">
+          <div style="font-size: 32px;">🔄</div>
+          <p style="margin: 0; font-size: 14px;">clawhub sync</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 页码 -->
+    <div class="slide-number"><span id="current">1</span> / <span id="total">11</span></div>
+  </div>
+
+  <script>
+    const slides = document.querySelectorAll('.slide');
+    const currentEl = document.getElementById('current');
+    const totalEl = document.getElementById('total');
+    let current = 0;
+    const total = slides.length;
+    totalEl.textContent = total;
+
+    function goTo(index) {
+      if (index < 0 || index >= total) return;
+      slides[current].classList.remove('active');
+      current = index;
+      slides[current].classList.add('active');
+      currentEl.textContent = current + 1;
+    }
+
+    function next() { goTo(current + 1); }
+    function prev() { goTo(current - 1); }
+
+    // 键盘控制
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); next(); }
+      if (e.key === 'ArrowLeft') { e.preventDefault(); prev(); }
+      if (e.key === 'Home') { e.preventDefault(); goTo(0); }
+      if (e.key === 'End') { e.preventDefault(); goTo(total - 1); }
+    });
+
+    // 触摸滑动
+    let touchStartX = 0;
+    document.addEventListener('touchstart', (e) => { touchStartX = e.touches[0].clientX; });
+    document.addEventListener('touchend', (e) => {
+      const diff = touchStartX - e.changedTouches[0].clientX;
+      if (Math.abs(diff) > 50) { diff > 0 ? next() : prev(); }
+    });
+  </script>
+</body>
+</html>

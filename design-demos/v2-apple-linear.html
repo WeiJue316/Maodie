@@ -1,0 +1,1784 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Project Agent v2 — Apple Linear Design</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ========== RESET & VARIABLES ========== */
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --bg: #0A0A0A;
+  --bg-elevated: rgba(255,255,255,0.04);
+  --bg-card: rgba(255,255,255,0.06);
+  --bg-card-hover: rgba(255,255,255,0.08);
+  --bg-input: rgba(255,255,255,0.08);
+  --border: rgba(255,255,255,0.08);
+  --border-subtle: rgba(255,255,255,0.05);
+  --text-primary: #F5F5F7;
+  --text-secondary: rgba(255,255,255,0.6);
+  --text-tertiary: rgba(255,255,255,0.4);
+  --accent: #2997FF;
+  --accent-hover: #40A9FF;
+  --accent-muted: rgba(41,151,255,0.12);
+  --green: #30D158;
+  --green-muted: rgba(48,209,88,0.12);
+  --orange: #FF9F0A;
+  --orange-muted: rgba(255,159,10,0.12);
+  --red: #FF453A;
+  --red-muted: rgba(255,69,58,0.12);
+  --radius: 10px;
+  --radius-sm: 6px;
+  --radius-lg: 14px;
+  --sidebar-w: 240px;
+  --transition: 0.2s cubic-bezier(0.25, 0.1, 0.25, 1);
+}
+
+html { font-size: 14px; }
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
+  background: var(--bg);
+  color: var(--text-primary);
+  line-height: 1.5;
+  overflow: hidden;
+  height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ========== SCROLLBAR ========== */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+
+/* ========== LAYOUT ========== */
+.app { display: flex; height: 100vh; }
+
+/* Sidebar */
+.sidebar {
+  width: var(--sidebar-w);
+  height: 100vh;
+  background: rgba(18,18,18,0.92);
+  backdrop-filter: blur(40px) saturate(180%);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 10;
+}
+
+.sidebar-header {
+  padding: 20px 16px 12px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.sidebar-logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.logo-icon {
+  width: 32px; height: 32px;
+  background: linear-gradient(135deg, #2997FF 0%, #1A7AE6 100%);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 14px;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.logo-text {
+  font-weight: 600;
+  font-size: 15px;
+  letter-spacing: -0.01em;
+}
+
+.logo-version {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  font-weight: 400;
+}
+
+.sidebar-nav { flex: 1; padding: 8px; overflow-y: auto; }
+
+.nav-section {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 12px 8px 4px;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background var(--transition);
+  font-size: 13.5px;
+  color: var(--text-secondary);
+  font-weight: 450;
+  position: relative;
+}
+
+.nav-item:hover { background: var(--bg-elevated); color: var(--text-primary); }
+
+.nav-item.active {
+  background: var(--accent-muted);
+  color: var(--accent);
+  font-weight: 500;
+}
+
+.nav-item.active::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 50%;
+  transform: translateY(-50%);
+  width: 3px; height: 16px;
+  background: var(--accent);
+  border-radius: 0 2px 2px 0;
+}
+
+.nav-icon {
+  width: 18px; height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.nav-icon svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+
+.nav-badge {
+  margin-left: auto;
+  background: var(--bg-card);
+  padding: 1px 6px;
+  border-radius: 8px;
+  font-size: 11px;
+  color: var(--text-tertiary);
+  font-weight: 500;
+}
+
+.sidebar-footer {
+  padding: 12px 16px;
+  border-top: 1px solid var(--border-subtle);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.avatar {
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #30D158 0%, #28A745 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.avatar-info { flex: 1; min-width: 0; }
+.avatar-name { font-size: 13px; font-weight: 500; }
+.avatar-status { font-size: 11px; color: var(--green); }
+
+/* Main Content */
+.main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+.topbar {
+  height: 52px;
+  padding: 0 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+  background: rgba(10,10,10,0.8);
+  backdrop-filter: blur(20px);
+}
+
+.topbar-title {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.topbar-actions { display: flex; align-items: center; gap: 8px; }
+
+.icon-btn {
+  width: 32px; height: 32px;
+  border-radius: var(--radius-sm);
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition);
+}
+.icon-btn:hover { background: var(--bg-elevated); color: var(--text-primary); }
+.icon-btn svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+
+.content { flex: 1; overflow: hidden; display: flex; }
+
+/* Page containers */
+.page { display: none; width: 100%; height: 100%; }
+.page.active { display: flex; }
+
+/* ========== SESSION PAGE ========== */
+.session-page { display: flex; }
+
+.session-list-panel {
+  width: 280px;
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+}
+
+.session-list-header {
+  padding: 16px;
+  border-bottom: 1px solid var(--border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.session-list-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.btn {
+  padding: 6px 14px;
+  border-radius: var(--radius-sm);
+  border: none;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition);
+  font-family: inherit;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: #fff;
+}
+.btn-primary:hover { background: var(--accent-hover); }
+
+.btn-ghost {
+  background: transparent;
+  color: var(--text-secondary);
+}
+.btn-ghost:hover { background: var(--bg-elevated); color: var(--text-primary); }
+
+.btn-sm { padding: 4px 10px; font-size: 12px; }
+
+.session-list { flex: 1; overflow-y: auto; padding: 8px; }
+
+.session-item {
+  padding: 12px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: background var(--transition);
+  margin-bottom: 2px;
+}
+.session-item:hover { background: var(--bg-elevated); }
+.session-item.active { background: var(--bg-card); }
+
+.session-item-title {
+  font-size: 13.5px;
+  font-weight: 500;
+  margin-bottom: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.session-item-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11.5px;
+  color: var(--text-tertiary);
+}
+
+.session-item-dot {
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: var(--green);
+  flex-shrink: 0;
+}
+
+/* Chat area */
+.chat-panel { flex: 1; display: flex; flex-direction: column; }
+
+.chat-header {
+  padding: 14px 24px;
+  border-bottom: 1px solid var(--border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.chat-header-info { display: flex; align-items: center; gap: 10px; }
+.chat-header-title { font-size: 14px; font-weight: 600; }
+.chat-header-badge {
+  padding: 2px 8px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 500;
+  background: var(--green-muted);
+  color: var(--green);
+}
+
+.chat-messages { flex: 1; overflow-y: auto; padding: 24px; display: flex; flex-direction: column; gap: 20px; }
+
+.message { display: flex; gap: 12px; max-width: 85%; }
+.message.user { align-self: flex-end; flex-direction: row-reverse; }
+.message.assistant { align-self: flex-start; }
+
+.msg-avatar {
+  width: 30px; height: 30px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: #fff;
+}
+.message.assistant .msg-avatar { background: linear-gradient(135deg, #2997FF, #1A7AE6); }
+.message.user .msg-avatar { background: linear-gradient(135deg, #5856D6, #AF52DE); }
+
+.msg-content {
+  padding: 12px 16px;
+  border-radius: 16px;
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+.message.assistant .msg-content {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-top-left-radius: 4px;
+}
+.message.user .msg-content {
+  background: var(--accent);
+  color: #fff;
+  border-top-right-radius: 4px;
+}
+
+.msg-time {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  margin-top: 4px;
+}
+.message.user .msg-time { text-align: right; }
+
+.tool-call {
+  margin-top: 10px;
+  padding: 10px 14px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+}
+.tool-call-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--accent);
+  font-weight: 500;
+  margin-bottom: 6px;
+}
+.tool-call-header svg { width: 14px; height: 14px; stroke: var(--accent); fill: none; stroke-width: 1.5; }
+.tool-call-body {
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  color: var(--text-secondary);
+  font-size: 12px;
+  white-space: pre-wrap;
+}
+
+/* Chat input */
+.chat-input-area {
+  padding: 16px 24px 20px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.chat-input-wrapper {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 10px 16px;
+  transition: border-color var(--transition);
+}
+.chat-input-wrapper:focus-within { border-color: var(--accent); }
+
+.chat-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text-primary);
+  font-size: 14px;
+  font-family: inherit;
+  resize: none;
+  min-height: 20px;
+  max-height: 120px;
+  line-height: 1.5;
+}
+.chat-input::placeholder { color: var(--text-tertiary); }
+
+.send-btn {
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  border: none;
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all var(--transition);
+}
+.send-btn:hover { background: var(--accent-hover); transform: scale(1.05); }
+.send-btn svg { width: 16px; height: 16px; stroke: #fff; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+/* ========== MEMORY PAGE ========== */
+.memory-page {
+  flex-direction: column;
+  padding: 24px;
+  gap: 24px;
+  overflow-y: auto;
+}
+
+.stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+
+.stat-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  position: relative;
+  overflow: hidden;
+}
+.stat-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+}
+.stat-card:nth-child(1)::before { background: var(--accent); }
+.stat-card:nth-child(2)::before { background: var(--green); }
+.stat-card:nth-child(3)::before { background: var(--orange); }
+.stat-card:nth-child(4)::before { background: #BF5AF2; }
+
+.stat-label {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 8px;
+}
+
+.stat-value {
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.stat-change {
+  font-size: 12px;
+  color: var(--green);
+  margin-top: 4px;
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.section-title {
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.search-input {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px 14px 8px 36px;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+  width: 260px;
+  transition: border-color var(--transition);
+}
+.search-input:focus { border-color: var(--accent); }
+.search-input::placeholder { color: var(--text-tertiary); }
+
+.search-wrapper {
+  position: relative;
+}
+.search-wrapper svg {
+  position: absolute;
+  left: 10px; top: 50%;
+  transform: translateY(-50%);
+  width: 16px; height: 16px;
+  stroke: var(--text-tertiary);
+  fill: none;
+  stroke-width: 1.5;
+}
+
+.obs-list { display: flex; flex-direction: column; gap: 8px; }
+
+.obs-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 20px;
+  transition: all var(--transition);
+  cursor: default;
+}
+.obs-card:hover {
+  background: var(--bg-card-hover);
+  border-color: rgba(255,255,255,0.12);
+}
+
+.obs-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.obs-content {
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--text-primary);
+}
+
+.obs-source {
+  font-size: 11.5px;
+  color: var(--text-tertiary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.obs-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 500;
+  background: var(--accent-muted);
+  color: var(--accent);
+}
+
+.obs-score {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.score-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+}
+.score-high { background: var(--green); }
+.score-mid { background: var(--orange); }
+
+/* ========== TOOLS PAGE ========== */
+.tools-page {
+  flex-direction: column;
+  padding: 24px;
+  gap: 20px;
+  overflow-y: auto;
+}
+
+.tool-table {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.tool-table-header {
+  display: grid;
+  grid-template-columns: 100px 1fr 120px 100px 100px;
+  padding: 12px 20px;
+  background: rgba(255,255,255,0.02);
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.tool-table-row {
+  display: grid;
+  grid-template-columns: 100px 1fr 120px 100px 100px;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border-subtle);
+  align-items: center;
+  font-size: 13px;
+  transition: background var(--transition);
+}
+.tool-table-row:last-child { border-bottom: none; }
+.tool-table-row:hover { background: var(--bg-elevated); }
+
+.tool-name {
+  font-weight: 500;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 12.5px;
+  color: var(--accent);
+}
+
+.tool-desc {
+  color: var(--text-secondary);
+  font-size: 12.5px;
+}
+
+.tool-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 500;
+}
+.tool-status.ok { color: var(--green); }
+.tool-status.warn { color: var(--orange); }
+
+.tool-status-dot {
+  width: 5px; height: 5px;
+  border-radius: 50%;
+}
+.tool-status.ok .tool-status-dot { background: var(--green); }
+.tool-status.warn .tool-status-dot { background: var(--orange); }
+
+.tool-count {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+}
+
+.tool-time {
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ========== SKILL PAGE ========== */
+.skill-page {
+  padding: 24px;
+  gap: 20px;
+  overflow-y: auto;
+  flex-wrap: wrap;
+  align-content: flex-start;
+}
+
+.skill-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 16px;
+  width: 100%;
+}
+
+.skill-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  transition: all var(--transition);
+  cursor: pointer;
+}
+.skill-card:hover {
+  background: var(--bg-card-hover);
+  border-color: rgba(255,255,255,0.12);
+  transform: translateY(-1px);
+}
+
+.skill-card-icon {
+  width: 36px; height: 36px;
+  border-radius: var(--radius);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  margin-bottom: 14px;
+}
+
+.skill-card-title {
+  font-size: 14.5px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.skill-card-desc {
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  line-height: 1.55;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.skill-card-footer {
+  margin-top: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ========== MCP PAGE ========== */
+.mcp-page {
+  flex-direction: column;
+  padding: 24px;
+  gap: 20px;
+  overflow-y: auto;
+}
+
+.server-list { display: flex; flex-direction: column; gap: 12px; }
+
+.server-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  transition: all var(--transition);
+}
+.server-card:hover { border-color: rgba(255,255,255,0.12); }
+
+.server-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.server-name-group { display: flex; align-items: center; gap: 10px; }
+
+.server-icon {
+  width: 34px; height: 34px;
+  border-radius: var(--radius);
+  background: var(--accent-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.server-icon svg { width: 18px; height: 18px; stroke: var(--accent); fill: none; stroke-width: 1.5; }
+
+.server-name { font-weight: 600; font-size: 14px; }
+.server-url { font-size: 11.5px; color: var(--text-tertiary); font-family: 'SF Mono', monospace; }
+
+.status-badge {
+  padding: 4px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 500;
+}
+.status-badge.online { background: var(--green-muted); color: var(--green); }
+.status-badge.offline { background: var(--red-muted); color: var(--red); }
+.status-badge.loading { background: var(--orange-muted); color: var(--orange); }
+
+.server-tools {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.server-tools-header {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  font-weight: 500;
+  margin-bottom: 8px;
+}
+
+.tool-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  background: var(--bg-elevated);
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin: 0 4px 6px 0;
+  font-family: 'SF Mono', monospace;
+}
+
+/* ========== ORCHESTRATOR PAGE ========== */
+.orch-page {
+  flex-direction: column;
+  padding: 24px;
+  gap: 20px;
+  overflow-y: auto;
+}
+
+.bento-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+.bento-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+}
+.bento-card.span-2 { grid-column: span 2; }
+
+.bento-card-label {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  font-weight: 500;
+  margin-bottom: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.agent-list { display: flex; flex-direction: column; gap: 10px; }
+
+.agent-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+}
+
+.agent-avatar {
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.agent-info { flex: 1; }
+.agent-name { font-size: 13px; font-weight: 500; }
+.agent-role { font-size: 11.5px; color: var(--text-tertiary); }
+
+.agent-status-indicator {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+}
+.agent-status-indicator.idle { background: var(--text-tertiary); }
+.agent-status-indicator.busy { background: var(--green); animation: pulse 2s infinite; }
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.task-list { display: flex; flex-direction: column; gap: 6px; }
+
+.task-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  font-size: 13px;
+}
+
+.task-title { flex: 1; }
+
+.task-status {
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 500;
+}
+.task-status.running { background: var(--accent-muted); color: var(--accent); }
+.task-status.done { background: var(--green-muted); color: var(--green); }
+.task-status.pending { background: rgba(255,255,255,0.06); color: var(--text-tertiary); }
+
+/* ========== SETTINGS PAGE ========== */
+.settings-page {
+  flex-direction: column;
+  padding: 24px;
+  gap: 24px;
+  overflow-y: auto;
+  max-width: 720px;
+}
+
+.settings-section {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+}
+
+.settings-section-title {
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: 20px;
+}
+
+.form-group { margin-bottom: 18px; }
+.form-group:last-child { margin-bottom: 0; }
+
+.form-label {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+
+.form-input {
+  width: 100%;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+  transition: border-color var(--transition);
+}
+.form-input:focus { border-color: var(--accent); }
+
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+
+.form-select {
+  width: 100%;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L5 5L9 1' stroke='rgba(255,255,255,0.4)' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+}
+
+.toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.toggle-row:last-child { border-bottom: none; }
+
+.toggle-label { font-size: 13px; }
+.toggle-desc { font-size: 11.5px; color: var(--text-tertiary); margin-top: 2px; }
+
+.toggle {
+  width: 40px; height: 22px;
+  background: rgba(255,255,255,0.12);
+  border-radius: 11px;
+  position: relative;
+  cursor: pointer;
+  transition: background var(--transition);
+  flex-shrink: 0;
+}
+.toggle.on { background: var(--accent); }
+.toggle::after {
+  content: '';
+  position: absolute;
+  top: 2px; left: 2px;
+  width: 18px; height: 18px;
+  background: #fff;
+  border-radius: 50%;
+  transition: transform var(--transition);
+}
+.toggle.on::after { transform: translateX(18px); }
+
+/* ========== EMPTY STATE ========== */
+.empty-state {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-tertiary);
+  gap: 12px;
+}
+.empty-state svg { width: 48px; height: 48px; stroke: rgba(255,255,255,0.1); fill: none; stroke-width: 1; }
+.empty-state-text { font-size: 14px; }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <!-- ===== SIDEBAR ===== -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-logo">
+        <div class="logo-icon">A</div>
+        <div>
+          <div class="logo-text">Project Agent</div>
+          <div class="logo-version">v2.0</div>
+        </div>
+      </div>
+    </div>
+
+    <nav class="sidebar-nav">
+      <div class="nav-section">核心</div>
+      <div class="nav-item active" data-page="session">
+        <span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
+        会话
+        <span class="nav-badge">3</span>
+      </div>
+      <div class="nav-item" data-page="memory">
+        <span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8z"/><path d="M12 6v6l4 2"/></svg></span>
+        记忆
+      </div>
+
+      <div class="nav-section">能力</div>
+      <div class="nav-item" data-page="tools">
+        <span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></span>
+        工具
+        <span class="nav-badge">6</span>
+      </div>
+      <div class="nav-item" data-page="skill">
+        <span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg></span>
+        技能
+        <span class="nav-badge">5</span>
+      </div>
+      <div class="nav-item" data-page="mcp">
+        <span class="nav-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 1v4m0 14v4M4.22 4.22l2.83 2.83m9.9 9.9 2.83 2.83M1 12h4m14 0h4M4.22 19.78l2.83-2.83m9.9-9.9 2.83-2.83"/></svg></span>
+        MCP
+        <span class="nav-badge">3</span>
+      </div>
+      <div class="nav-item" data-page="orch">
+        <span class="nav-icon"><svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg></span>
+        编排器
+      </div>
+
+      <div class="nav-section">系统</div>
+      <div class="nav-item" data-page="settings">
+        <span class="nav-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>
+        设置
+      </div>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="avatar">LY</div>
+      <div class="avatar-info">
+        <div class="avatar-name">LYY</div>
+        <div class="avatar-status">● 在线</div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ===== MAIN ===== -->
+  <div class="main">
+    <div class="topbar">
+      <span class="topbar-title" id="topbar-title">会话</span>
+      <div class="topbar-actions">
+        <button class="icon-btn" title="搜索"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button>
+        <button class="icon-btn" title="通知"><svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></button>
+      </div>
+    </div>
+
+    <div class="content">
+
+      <!-- ===== SESSION PAGE ===== -->
+      <div class="page active session-page" id="page-session">
+        <div class="session-list-panel">
+          <div class="session-list-header">
+            <span class="session-list-title">会话列表</span>
+            <button class="btn btn-primary btn-sm">+ 新建</button>
+          </div>
+          <div class="session-list">
+            <div class="session-item active">
+              <div class="session-item-title">设计文档讨论</div>
+              <div class="session-item-meta">
+                <span class="session-item-dot"></span>
+                <span>今天 14:30</span>
+                <span>·</span>
+                <span>12 条消息</span>
+              </div>
+            </div>
+            <div class="session-item">
+              <div class="session-item-title">Bug 修复：API 超时问题</div>
+              <div class="session-item-meta">
+                <span class="session-item-dot" style="background:var(--text-tertiary)"></span>
+                <span>今天 10:15</span>
+                <span>·</span>
+                <span>8 条消息</span>
+              </div>
+            </div>
+            <div class="session-item">
+              <div class="session-item-title">前端重构方案</div>
+              <div class="session-item-meta">
+                <span class="session-item-dot" style="background:var(--text-tertiary)"></span>
+                <span>昨天 22:00</span>
+                <span>·</span>
+                <span>24 条消息</span>
+              </div>
+            </div>
+            <div class="session-item">
+              <div class="session-item-title">MCP 集成测试</div>
+              <div class="session-item-meta">
+                <span class="session-item-dot" style="background:var(--text-tertiary)"></span>
+                <span>昨天 16:45</span>
+                <span>·</span>
+                <span>6 条消息</span>
+              </div>
+            </div>
+            <div class="session-item">
+              <div class="session-item-title">数据库迁移讨论</div>
+              <div class="session-item-meta">
+                <span class="session-item-dot" style="background:var(--text-tertiary)"></span>
+                <span>6月15日</span>
+                <span>·</span>
+                <span>15 条消息</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="chat-panel">
+          <div class="chat-header">
+            <div class="chat-header-info">
+              <span class="chat-header-title">设计文档讨论</span>
+              <span class="chat-header-badge">活跃</span>
+            </div>
+            <div style="display:flex;gap:4px;">
+              <button class="icon-btn"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></button>
+            </div>
+          </div>
+
+          <div class="chat-messages">
+            <div class="message user">
+              <div class="msg-avatar">LY</div>
+              <div>
+                <div class="msg-content">帮我设计一个前端架构，需要支持实时流式响应，用 React + TypeScript</div>
+                <div class="msg-time">14:30</div>
+              </div>
+            </div>
+
+            <div class="message assistant">
+              <div class="msg-avatar">A</div>
+              <div>
+                <div class="msg-content">
+                  推荐使用 SSE（Server-Sent Events）实现流式响应。架构分层如下：<br><br>
+                  <strong>1. 数据层</strong>：React Query 管理请求状态 + 自定义 hook 处理 SSE 流<br>
+                  <strong>2. 状态层</strong>：Redux Toolkit 存储会话和消息<br>
+                  <strong>3. 展示层</strong>：组件按模块拆分，共享 UI 基础库<br><br>
+                  SSE 相比 WebSocket 更适合这个场景——单向推送、自动重连、实现简单。
+                </div>
+                <div class="tool-call">
+                  <div class="tool-call-header">
+                    <svg viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+                    read_file
+                  </div>
+                  <div class="tool-call-body">agent/loop.py → 检查 ReAct 循环结构</div>
+                </div>
+                <div class="msg-time">14:31</div>
+              </div>
+            </div>
+
+            <div class="message user">
+              <div class="msg-avatar">LY</div>
+              <div>
+                <div class="msg-content">可以，开始实现吧。先做 Session 页面</div>
+                <div class="msg-time">14:32</div>
+              </div>
+            </div>
+
+            <div class="message assistant">
+              <div class="msg-avatar">A</div>
+              <div>
+                <div class="msg-content">
+                  开始实现 SessionPage。分左右两栏——左侧会话列表，右侧聊天区域。消息气泡支持 SSE 流式渲染，逐字显示。
+                </div>
+                <div class="tool-call">
+                  <div class="tool-call-header">
+                    <svg viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+                    write_file
+                  </div>
+                  <div class="tool-call-body">frontend/src/features/session/SessionPage.tsx</div>
+                </div>
+                <div class="msg-time">14:33</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="chat-input-area">
+            <div class="chat-input-wrapper">
+              <textarea class="chat-input" placeholder="输入消息…" rows="1"></textarea>
+              <button class="send-btn">
+                <svg viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== MEMORY PAGE ===== -->
+      <div class="page memory-page" id="page-memory">
+        <div class="stats-row">
+          <div class="stat-card">
+            <div class="stat-label">长期记忆</div>
+            <div class="stat-value">24</div>
+            <div class="stat-change">+3 本周</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Observations</div>
+            <div class="stat-value">186</div>
+            <div class="stat-change">+12 今天</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">待晋升</div>
+            <div class="stat-value">7</div>
+            <div class="stat-change">阈值: 3 次引用</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">向量维度</div>
+            <div class="stat-value">512</div>
+            <div class="stat-change">BAAI/bge-small-zh</div>
+          </div>
+        </div>
+
+        <div>
+          <div class="section-header">
+            <span class="section-title">Observations</span>
+            <div class="search-wrapper">
+              <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <input type="text" class="search-input" placeholder="搜索记忆…">
+            </div>
+          </div>
+          <div class="obs-list">
+            <div class="obs-card">
+              <div class="obs-card-header">
+                <span class="obs-tag">技术决策</span>
+                <span class="obs-score"><span class="score-dot score-high"></span> 引用 5 次</span>
+              </div>
+              <div class="obs-content">项目使用 SSE 而非 WebSocket 进行流式响应，原因是 SSE 支持自动重连且实现更简单，适合单向推送场景。</div>
+              <div class="obs-source">来源: 20260617-143000-a1b2c3 · <span style="color:var(--green)">已晋升</span></div>
+            </div>
+            <div class="obs-card">
+              <div class="obs-card-header">
+                <span class="obs-tag">用户偏好</span>
+                <span class="obs-score"><span class="score-dot score-high"></span> 引用 4 次</span>
+              </div>
+              <div class="obs-content">用户偏好 Apple 风格的设计语言，偏好深色主题，不喜欢过于花哨的渐变效果。</div>
+              <div class="obs-source">来源: 20260617-143000-a1b2c3 · <span style="color:var(--green)">已晋升</span></div>
+            </div>
+            <div class="obs-card">
+              <div class="obs-card-header">
+                <span class="obs-tag">代码规范</span>
+                <span class="obs-score"><span class="score-dot score-mid"></span> 引用 2 次</span>
+              </div>
+              <div class="obs-content">前端项目使用 Vite + React 18 + TypeScript，组件按功能模块拆分到 features/ 目录下。</div>
+              <div class="obs-source">来源: 20260617-101500-d4e5f6 · <span style="color:var(--text-tertiary)">待晋升</span></div>
+            </div>
+            <div class="obs-card">
+              <div class="obs-card-header">
+                <span class="obs-tag">环境配置</span>
+                <span class="obs-score"><span class="score-dot score-mid"></span> 引用 2 次</span>
+              </div>
+              <div class="obs-content">Python 解释器使用 D:\Anaconda\envs\py100\python.exe (3.11)，不要使用默认的 3.7.3 版本。</div>
+              <div class="obs-source">来源: 20260617-101500-d4e5f6 · <span style="color:var(--text-tertiary)">待晋升</span></div>
+            </div>
+            <div class="obs-card">
+              <div class="obs-card-header">
+                <span class="obs-tag">设计规范</span>
+                <span class="obs-score"><span class="score-dot score-mid"></span> 引用 1 次</span>
+              </div>
+              <div class="obs-content">界面使用 glass morphism 风格，backdrop-filter: blur(40px)，圆角 10px，强调色 #2997FF。</div>
+              <div class="obs-source">来源: 20260617-143000-a1b2c3 · <span style="color:var(--text-tertiary)">待晋升</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div class="section-header">
+            <span class="section-title">长期记忆</span>
+            <button class="btn btn-ghost btn-sm">查看全部 →</button>
+          </div>
+          <div class="obs-list">
+            <div class="obs-card">
+              <div class="obs-card-header">
+                <span class="obs-tag" style="background:var(--green-muted);color:var(--green)">长期</span>
+                <span class="obs-score"><span class="score-dot score-high"></span> 引用 8 次</span>
+              </div>
+              <div class="obs-content">LYY 是计算机科学与技术专业大学生，主要用 Claude Code 做产品开发和知识管理。</div>
+              <div class="obs-source">MEMORY.md</div>
+            </div>
+            <div class="obs-card">
+              <div class="obs-card-header">
+                <span class="obs-tag" style="background:var(--green-muted);color:var(--green)">长期</span>
+                <span class="obs-score"><span class="score-dot score-high"></span> 引用 6 次</span>
+              </div>
+              <div class="obs-content">每次升级必须更新 CHANGELOG.md，格式：版本号 + 日期 + 分类条目。</div>
+              <div class="obs-source">MEMORY.md</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== TOOLS PAGE ===== -->
+      <div class="page tools-page" id="page-tools">
+        <div class="stats-row" style="grid-template-columns: repeat(3,1fr)">
+          <div class="stat-card">
+            <div class="stat-label">已注册工具</div>
+            <div class="stat-value">6</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">今日调用</div>
+            <div class="stat-value">47</div>
+            <div class="stat-change">成功率 98%</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">平均耗时</div>
+            <div class="stat-value">1.2s</div>
+          </div>
+        </div>
+
+        <div class="tool-table">
+          <div class="tool-table-header">
+            <span>工具名</span>
+            <span>描述</span>
+            <span>状态</span>
+            <span>调用次数</span>
+            <span>耗时</span>
+          </div>
+          <div class="tool-table-row">
+            <span class="tool-name">read_file</span>
+            <span class="tool-desc">读取文件内容</span>
+            <span class="tool-status ok"><span class="tool-status-dot"></span> 正常</span>
+            <span class="tool-count">18</span>
+            <span class="tool-time">0.3s</span>
+          </div>
+          <div class="tool-table-row">
+            <span class="tool-name">write_file</span>
+            <span class="tool-desc">写入文件内容</span>
+            <span class="tool-status ok"><span class="tool-status-dot"></span> 正常</span>
+            <span class="tool-count">12</span>
+            <span class="tool-time">0.5s</span>
+          </div>
+          <div class="tool-table-row">
+            <span class="tool-name">list_dir</span>
+            <span class="tool-desc">列出目录内容</span>
+            <span class="tool-status ok"><span class="tool-status-dot"></span> 正常</span>
+            <span class="tool-count">8</span>
+            <span class="tool-time">0.1s</span>
+          </div>
+          <div class="tool-table-row">
+            <span class="tool-name">shell</span>
+            <span class="tool-desc">执行 shell 命令</span>
+            <span class="tool-status warn"><span class="tool-status-dot"></span> 受限</span>
+            <span class="tool-count">5</span>
+            <span class="tool-time">2.8s</span>
+          </div>
+          <div class="tool-table-row">
+            <span class="tool-name">search_files</span>
+            <span class="tool-desc">搜索文件内容</span>
+            <span class="tool-status ok"><span class="tool-status-dot"></span> 正常</span>
+            <span class="tool-count">3</span>
+            <span class="tool-time">0.4s</span>
+          </div>
+          <div class="tool-table-row">
+            <span class="tool-name">search_memory</span>
+            <span class="tool-desc">检索长期记忆</span>
+            <span class="tool-status ok"><span class="tool-status-dot"></span> 正常</span>
+            <span class="tool-count">1</span>
+            <span class="tool-time">0.2s</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== SKILL PAGE ===== -->
+      <div class="page skill-page" id="page-skill">
+        <div class="section-header" style="width:100%">
+          <span class="section-title">技能库</span>
+          <button class="btn btn-ghost btn-sm">刷新</button>
+        </div>
+        <div class="skill-grid">
+          <div class="skill-card">
+            <div class="skill-card-icon" style="background:var(--accent-muted);color:var(--accent);">🎨</div>
+            <div class="skill-card-title">huashu-design</div>
+            <div class="skill-card-desc">华为设计系统生成器，基于 3-Logic 并行设计方法论，输出高保真设计方案</div>
+            <div class="skill-card-footer">
+              <span class="obs-tag">设计</span>
+              <span style="font-size:11px;color:var(--text-tertiary)">3 个示例</span>
+            </div>
+          </div>
+          <div class="skill-card">
+            <div class="skill-card-icon" style="background:var(--green-muted);color:var(--green);">⚡</div>
+            <div class="skill-card-title">quick-deploy</div>
+            <div class="skill-card-desc">一键部署项目到目标环境，支持 Docker、Vercel、Cloudflare Workers</div>
+            <div class="skill-card-footer">
+              <span class="obs-tag" style="background:var(--green-muted);color:var(--green)">部署</span>
+              <span style="font-size:11px;color:var(--text-tertiary)">2 个示例</span>
+            </div>
+          </div>
+          <div class="skill-card">
+            <div class="skill-card-icon" style="background:var(--orange-muted);color:var(--orange);">🔍</div>
+            <div class="skill-card-title">code-review</div>
+            <div class="skill-card-desc">自动化代码审查，检查代码质量、安全性、性能问题，输出结构化报告</div>
+            <div class="skill-card-footer">
+              <span class="obs-tag" style="background:var(--orange-muted);color:var(--orange)">审查</span>
+              <span style="font-size:11px;color:var(--text-tertiary)">1 个示例</span>
+            </div>
+          </div>
+          <div class="skill-card">
+            <div class="skill-card-icon" style="background:rgba(191,90,242,0.12);color:#BF5AF2;">📝</div>
+            <div class="skill-card-title">doc-writer</div>
+            <div class="skill-card-desc">自动生成项目文档，包括 README、API 文档、变更日志</div>
+            <div class="skill-card-footer">
+              <span class="obs-tag" style="background:rgba(191,90,242,0.12);color:#BF5AF2">文档</span>
+              <span style="font-size:11px;color:var(--text-tertiary)">4 个示例</span>
+            </div>
+          </div>
+          <div class="skill-card">
+            <div class="skill-card-icon" style="background:rgba(255,69,58,0.12);color:var(--red);">🧪</div>
+            <div class="skill-card-title">test-gen</div>
+            <div class="skill-card-desc">智能测试生成器，根据源码自动编写单元测试和集成测试</div>
+            <div class="skill-card-footer">
+              <span class="obs-tag" style="background:rgba(255,69,58,0.12);color:var(--red)">测试</span>
+              <span style="font-size:11px;color:var(--text-tertiary)">2 个示例</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== MCP PAGE ===== -->
+      <div class="page mcp-page" id="page-mcp">
+        <div class="section-header">
+          <span class="section-title">MCP 服务器</span>
+          <button class="btn btn-primary btn-sm">+ 添加服务器</button>
+        </div>
+        <div class="server-list">
+          <div class="server-card">
+            <div class="server-header">
+              <div class="server-name-group">
+                <div class="server-icon">
+                  <svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                </div>
+                <div>
+                  <div class="server-name">amap-maps</div>
+                  <div class="server-url">mcp.api-inference.modelscope.net</div>
+                </div>
+              </div>
+              <span class="status-badge online">在线</span>
+            </div>
+            <div class="server-tools">
+              <div class="server-tools-header">可用工具 (3)</div>
+              <span class="tool-pill">map_search</span>
+              <span class="tool-pill">route_plan</span>
+              <span class="tool-pill">poi_detail</span>
+            </div>
+          </div>
+
+          <div class="server-card">
+            <div class="server-header">
+              <div class="server-name-group">
+                <div class="server-icon" style="background:var(--green-muted);">
+                  <svg viewBox="0 0 24 24" style="stroke:var(--green)"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                </div>
+                <div>
+                  <div class="server-name">12306-mcp</div>
+                  <div class="server-url">mcp.api-inference.modelscope.net</div>
+                </div>
+              </div>
+              <span class="status-badge online">在线</span>
+            </div>
+            <div class="server-tools">
+              <div class="server-tools-header">可用工具 (2)</div>
+              <span class="tool-pill">train_search</span>
+              <span class="tool-pill">ticket_book</span>
+            </div>
+          </div>
+
+          <div class="server-card">
+            <div class="server-header">
+              <div class="server-name-group">
+                <div class="server-icon" style="background:var(--red-muted);">
+                  <svg viewBox="0 0 24 24" style="stroke:var(--red)"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                </div>
+                <div>
+                  <div class="server-name">fetch</div>
+                  <div class="server-url">mcp-.api-inference.modelscope.net</div>
+                </div>
+              </div>
+              <span class="status-badge offline">离线</span>
+            </div>
+            <div class="server-tools">
+              <div class="server-tools-header" style="color:var(--red)">连接失败</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== ORCHESTRATOR PAGE ===== -->
+      <div class="page orch-page" id="page-orch">
+        <div class="section-header">
+          <span class="section-title">Agent 编排器</span>
+          <button class="btn btn-primary btn-sm">+ 创建任务</button>
+        </div>
+
+        <div class="bento-grid">
+          <div class="bento-card span-2">
+            <div class="bento-card-label">Agent 列表</div>
+            <div class="agent-list">
+              <div class="agent-row">
+                <div class="agent-avatar" style="background:linear-gradient(135deg,#2997FF,#1A7AE6)">A</div>
+                <div class="agent-info">
+                  <div class="agent-name">architect</div>
+                  <div class="agent-role">架构师 · 分析需求、设计模块</div>
+                </div>
+                <span class="agent-status-indicator idle"></span>
+                <span style="font-size:12px;color:var(--text-tertiary)">空闲</span>
+              </div>
+              <div class="agent-row">
+                <div class="agent-avatar" style="background:linear-gradient(135deg,#30D158,#28A745)">C</div>
+                <div class="agent-info">
+                  <div class="agent-name">coder</div>
+                  <div class="agent-role">开发者 · 编写实现代码</div>
+                </div>
+                <span class="agent-status-indicator busy"></span>
+                <span style="font-size:12px;color:var(--green)">工作中</span>
+              </div>
+              <div class="agent-row">
+                <div class="agent-avatar" style="background:linear-gradient(135deg,#FF9F0A,#FF6B00)">R</div>
+                <div class="agent-info">
+                  <div class="agent-name">reviewer</div>
+                  <div class="agent-role">审查员 · 代码质量和安全检查</div>
+                </div>
+                <span class="agent-status-indicator idle"></span>
+                <span style="font-size:12px;color:var(--text-tertiary)">空闲</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="bento-card">
+            <div class="bento-card-label">任务统计</div>
+            <div style="display:flex;flex-direction:column;gap:12px;margin-top:8px">
+              <div style="display:flex;justify-content:space-between;align-items:center">
+                <span style="font-size:13px;color:var(--text-secondary)">运行中</span>
+                <span style="font-size:20px;font-weight:700;color:var(--accent)">1</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;align-items:center">
+                <span style="font-size:13px;color:var(--text-secondary)">已完成</span>
+                <span style="font-size:20px;font-weight:700;color:var(--green)">12</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;align-items:center">
+                <span style="font-size:13px;color:var(--text-secondary)">队列中</span>
+                <span style="font-size:20px;font-weight:700;color:var(--text-tertiary)">0</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div class="section-header">
+            <span class="section-title">任务列表</span>
+          </div>
+          <div class="task-list">
+            <div class="task-row">
+              <span class="task-title">重构 SessionPage 组件</span>
+              <span class="task-status running">运行中</span>
+              <span style="font-size:12px;color:var(--text-tertiary)">coder 执行中</span>
+            </div>
+            <div class="task-row">
+              <span class="task-title">设计 Memory 页面布局</span>
+              <span class="task-status done">已完成</span>
+              <span style="font-size:12px;color:var(--text-tertiary)">耗时 45s</span>
+            </div>
+            <div class="task-row">
+              <span class="task-title">API 接口联调</span>
+              <span class="task-status done">已完成</span>
+              <span style="font-size:12px;color:var(--text-tertiary)">耗时 2m 10s</span>
+            </div>
+            <div class="task-row">
+              <span class="task-title">添加 SSE 流式支持</span>
+              <span class="task-status done">已完成</span>
+              <span style="font-size:12px;color:var(--text-tertiary)">耗时 1m 30s</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== SETTINGS PAGE ===== -->
+      <div class="page settings-page" id="page-settings">
+        <div class="settings-section">
+          <div class="settings-section-title">LLM 配置</div>
+          <div class="form-group">
+            <label class="form-label">Provider</label>
+            <select class="form-select">
+              <option>mimo (当前)</option>
+              <option>minimax</option>
+              <option>deepseek</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">模型</label>
+            <input type="text" class="form-input" value="mimo-v2.5-pro">
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Base URL</label>
+              <input type="text" class="form-input" value="https://token-plan-cn.xiaomimimo.com/v1">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Temperature</label>
+              <input type="text" class="form-input" value="0.7">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">超时 (秒)</label>
+              <input type="text" class="form-input" value="180">
+            </div>
+            <div class="form-group">
+              <label class="form-label">最大重试</label>
+              <input type="text" class="form-input" value="3">
+            </div>
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <div class="settings-section-title">Agent 配置</div>
+          <div class="toggle-row">
+            <div>
+              <div class="toggle-label">流式输出</div>
+              <div class="toggle-desc">启用 SSE 流式响应</div>
+            </div>
+            <div class="toggle on" onclick="this.classList.toggle('on')"></div>
+          </div>
+          <div class="toggle-row">
+            <div>
+              <div class="toggle-label">自动保存会话</div>
+              <div class="toggle-desc">每轮对话后自动持久化</div>
+            </div>
+            <div class="toggle on" onclick="this.classList.toggle('on')"></div>
+          </div>
+          <div class="toggle-row">
+            <div>
+              <div class="toggle-label">Observation 提取</div>
+              <div class="toggle-desc">会话结束时自动提取记忆</div>
+            </div>
+            <div class="toggle on" onclick="this.classList.toggle('on')"></div>
+          </div>
+          <div class="toggle-row">
+            <div>
+              <div class="toggle-label">自动晋升</div>
+              <div class="toggle-desc">引用次数达标后自动晋升为长期记忆</div>
+            </div>
+            <div class="toggle on" onclick="this.classList.toggle('on')"></div>
+          </div>
+          <div class="form-group" style="margin-top:16px">
+            <label class="form-label">最大迭代次数</label>
+            <input type="text" class="form-input" value="40" style="width:120px">
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <div class="settings-section-title">会话配置</div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">存储目录</label>
+              <input type="text" class="form-input" value=".sessions">
+            </div>
+            <div class="form-group">
+              <label class="form-label">最大历史条数</label>
+              <input type="text" class="form-input" value="100">
+            </div>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:10px;justify-content:flex-end">
+          <button class="btn btn-ghost">重置</button>
+          <button class="btn btn-primary">保存设置</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+// Navigation
+const navItems = document.querySelectorAll('.nav-item');
+const pages = document.querySelectorAll('.page');
+const topbarTitle = document.getElementById('topbar-title');
+
+const titles = {
+  session: '会话', memory: '记忆', tools: '工具',
+  skill: '技能', mcp: 'MCP', orch: '编排器', settings: '设置'
+};
+
+navItems.forEach(item => {
+  item.addEventListener('click', () => {
+    const page = item.dataset.page;
+    navItems.forEach(n => n.classList.remove('active'));
+    item.classList.add('active');
+    pages.forEach(p => p.classList.remove('active'));
+    document.getElementById('page-' + page).classList.add('active');
+    topbarTitle.textContent = titles[page] || page;
+  });
+});
+
+// Session list selection
+document.querySelectorAll('.session-item').forEach(item => {
+  item.addEventListener('click', () => {
+    document.querySelectorAll('.session-item').forEach(i => i.classList.remove('active'));
+    item.classList.add('active');
+  });
+});
+
+// Auto-resize textarea
+const textarea = document.querySelector('.chat-input');
+if (textarea) {
+  textarea.addEventListener('input', function() {
+    this.style.height = 'auto';
+    this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+  });
+}
+</script>
+</body>
+</html>

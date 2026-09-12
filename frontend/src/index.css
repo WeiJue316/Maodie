@@ -1,0 +1,100 @@
+@import "tailwindcss";
+
+/* ========== SHADCN/UI DARK THEME ========== */
+@theme {
+  --color-background: #0A0A0A;
+  --color-foreground: #F5F5F7;
+  --color-card: rgba(255,255,255,0.06);
+  --color-card-foreground: #F5F5F7;
+  --color-popover: #1A1A1A;
+  --color-popover-foreground: #F5F5F7;
+  --color-primary: #2997FF;
+  --color-primary-foreground: #FFFFFF;
+  --color-secondary: rgba(255,255,255,0.06);
+  --color-secondary-foreground: #F5F5F7;
+  --color-muted: rgba(255,255,255,0.06);
+  --color-muted-foreground: rgba(255,255,255,0.5);
+  --color-accent: rgba(255,255,255,0.06);
+  --color-accent-foreground: #F5F5F7;
+  --color-destructive: #FF453A;
+  --color-destructive-foreground: #FFFFFF;
+  --color-border: rgba(255,255,255,0.08);
+  --color-input: rgba(255,255,255,0.08);
+  --color-ring: #2997FF;
+  --radius: 0.625rem;
+
+  /* Apple Design Tokens */
+  --color-apple-blue: #2997FF;
+  --color-apple-blue-hover: #40A9FF;
+  --color-apple-green: #30D158;
+  --color-apple-orange: #FF9F0A;
+  --color-apple-red: #FF453A;
+  --color-apple-purple: #BF5AF2;
+
+  /* Animations */
+  --animate-dot-bounce: dot-bounce 1.4s ease-in-out infinite;
+}
+
+/* ========== BASE ========== */
+html { font-size: 14px; }
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', sans-serif;
+  background-color: var(--color-background);
+  color: var(--color-foreground);
+  line-height: 1.5;
+  overflow: hidden;
+  height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#root { height: 100vh; }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+
+/* Spotlight Card */
+.spotlight-card {
+  position: relative;
+  background: var(--color-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  transition: all 0.2s cubic-bezier(0.25, 0.1, 0.25, 1);
+}
+.spotlight-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    600px circle at var(--mouse-x, 50%) var(--mouse-y, 50%),
+    rgba(41,151,255,0.06),
+    transparent 40%
+  );
+  opacity: 0;
+  transition: opacity 0.2s;
+  pointer-events: none;
+  z-index: 1;
+}
+.spotlight-card:hover::before { opacity: 1; }
+.spotlight-card:hover { border-color: rgba(255,255,255,0.12); }
+.spotlight-card > * { position: relative; z-index: 2; }
+
+/* Dot Spinner */
+.dot-spinner { display: inline-flex; gap: 4px; align-items: center; padding: 4px 0; }
+.dot-spinner span {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--color-primary);
+  animation: dot-bounce 1.4s ease-in-out infinite;
+}
+.dot-spinner span:nth-child(2) { animation-delay: 0.16s; }
+.dot-spinner span:nth-child(3) { animation-delay: 0.32s; }
+
+@keyframes dot-bounce {
+  0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); }
+  40% { opacity: 1; transform: scale(1); }
+}

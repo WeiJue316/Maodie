@@ -1,0 +1,30 @@
+# 环境与密钥
+.env
+config.local.yaml
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+
+# 运行时数据
+.sessions/
+.memory/
+.learnings/
+*.log
+
+# Node 前端
+node_modules/
+frontend/node_modules/
+frontend/dist/
+*.tsbuildinfo
+
+# IDE / 系统
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+# 第三方技能(不纳入版本库)
+agent-skills/guizang-ppt-skill/

@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Agent 核心模块介绍 · ReAct Agent CLI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;700&family=Playfair+Display:wght@400;600;700&family=Noto+Sans+SC:wght@400;500;600&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    :root {
+      --ink: #1a1a2e;
+      --ink-rgb: 26, 26, 46;
+      --paper: #faf8f5;
+      --paper-rgb: 250, 248, 245;
+      --accent: #c9a227;
+      --accent-rgb: 201, 162, 39;
+      --warm: #d4a574;
+      --warm-rgb: 212, 165, 116;
+      --sp-3: 8px; --sp-4: 12px; --sp-5: 16px; --sp-6: 24px; --sp-7: 32px; --sp-8: 40px; --sp-9: 48px; --sp-10: 64px; --sp-11: 80px; --sp-12: 96px;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; overflow: hidden; font-family: 'Noto Sans SC', sans-serif; background: var(--ink); color: var(--ink); }
+    
+    .deck { width: 100%; height: 100%; display: flex; transition: transform 0.7s cubic-bezier(0.4, 0, 0.2, 1); }
+    
+    .slide { min-width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: center; padding: var(--sp-10); position: relative; overflow: hidden; }
+    
+    .hero { background: var(--ink); color: var(--paper); }
+    .hero.light { background: var(--paper); color: var(--ink); }
+    .light { background: var(--paper); color: var(--ink); }
+    .dark { background: var(--ink); color: var(--paper); }
+    
+    .chrome { position: absolute; bottom: var(--sp-6); left: var(--sp-10); right: var(--sp-10); display: flex; justify-content: space-between; align-items: center; }
+    .chrome-min { position: absolute; bottom: var(--sp-5); right: var(--sp-10); font-size: 0.75rem; opacity: 0.4; font-family: 'Courier New', monospace; }
+    .foot { font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.1em; opacity: 0.5; }
+    
+    .h-hero { font-family: 'Noto Serif SC', 'Playfair Display', serif; font-size: clamp(2.5rem, 7vw, 5.5rem); font-weight: 600; line-height: 1.1; letter-spacing: -0.02em; }
+    .h-xl { font-family: 'Noto Serif SC', serif; font-size: clamp(1.8rem, 4vw, 3rem); font-weight: 600; line-height: 1.2; }
+    .h-sub { font-size: clamp(1.2rem, 2.5vw, 1.8rem); font-weight: 400; line-height: 1.4; }
+    .h-md { font-size: clamp(1rem, 1.8vw, 1.3rem); font-weight: 500; line-height: 1.5; }
+    .lead { font-size: clamp(1rem, 1.5vw, 1.2rem); line-height: 1.7; opacity: 0.85; }
+    .kicker { font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.2em; opacity: 0.6; }
+    .meta-row { display: flex; gap: var(--sp-5); font-size: 0.75rem; opacity: 0.5; text-transform: uppercase; letter-spacing: 0.08em; }
+    
+    .stat-card { display: flex; flex-direction: column; gap: var(--sp-3); }
+    .stat-nb { font-family: 'Playfair Display', serif; font-size: clamp(2rem, 5vw, 3.5rem); font-weight: 700; line-height: 1; }
+    .stat-label { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.1em; opacity: 0.6; }
+    .stat-unit { font-size: 0.7rem; opacity: 0.5; }
+    
+    .grid-2-7-5 { display: grid; grid-template-columns: 2fr 7fr 5fr; gap: var(--sp-7); }
+    .grid-2-6-6 { display: grid; grid-template-columns: 2fr 6fr 6fr; gap: var(--sp-6); }
+    .grid-2-8-4 { display: grid; grid-template-columns: 2fr 8fr 4fr; gap: var(--sp-6); }
+    .grid-3-3 { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-6); }
+    .grid-6 { display: grid; grid-template-columns: repeat(6, 1fr); gap: var(--sp-5); }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--sp-6); }
+    .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--sp-5); }
+    
+    .frame { position: relative; overflow: hidden; border-radius: 4px; }
+    .frame-img { width: 100%; height: 100%; object-fit: cover; }
+    .img-cap { font-size: 0.7rem; opacity: 0.5; margin-top: var(--sp-3); text-transform: uppercase; letter-spacing: 0.08em; }
+    
+    .callout { padding: var(--sp-7); border-left: 3px solid var(--accent); background: rgba(var(--warm-rgb), 0.08); }
+    .callout-src { font-size: 0.75rem; opacity: 0.6; margin-top: var(--sp-4); }
+    
+    .pipeline-section { margin-bottom: var(--sp-8); }
+    .pipeline-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.15em; opacity: 0.5; margin-bottom: var(--sp-4); }
+    .pipeline { display: flex; gap: var(--sp-5); flex-wrap: wrap; }
+    .step { display: flex; gap: var(--sp-4); align-items: center; }
+    .step-nb { font-family: 'Playfair Display', serif; font-size: 1.5rem; font-weight: 700; width: 40px; color: var(--accent); }
+    .step-title { font-size: 1rem; font-weight: 600; }
+    .step-desc { font-size: 0.85rem; opacity: 0.7; }
+    
+    code, pre { font-family: 'Courier New', monospace; background: rgba(var(--ink-rgb), 0.06); padding: 3px 8px; border-radius: 4px; font-size: 0.85em; }
+    .hero code { background: rgba(255,255,255,0.15); }
+    pre { background: rgba(var(--ink-rgb), 0.05); padding: var(--sp-6); border-radius: 8px; overflow-x: auto; font-size: 0.8rem; line-height: 1.7; border: 1px solid rgba(var(--ink-rgb), 0.1); }
+    .hero pre { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.1); }
+    
+    .table-simple { width: 100%; border-collapse: collapse; }
+    .table-simple th, .table-simple td { padding: var(--sp-4) var(--sp-5); text-align: left; border-bottom: 1px solid rgba(var(--ink-rgb), 0.12); }
+    .hero .table-simple th, .hero .table-simple td { border-bottom-color: rgba(255,255,255,0.12); }
+    .table-simple th { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.1em; opacity: 0.5; }
+    
+    .fluid-bg { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 0; opacity: 0.15; }
+    .slide > * { position: relative; z-index: 1; }
+    .slide { height: 100%; }
+    
+    .controls { position: fixed; bottom: var(--sp-6); left: 50%; transform: translateX(-50%); display: flex; gap: var(--sp-4); z-index: 100; }
+    .ctrl-btn { width: 50px; height: 50px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.3); background: rgba(var(--ink-rgb), 0.9); color: var(--paper); display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.25s; backdrop-filter: blur(10px); }
+    .ctrl-btn:hover { background: var(--accent); border-color: var(--accent); transform: scale(1.05); }
+    
+    .progress { position: fixed; top: 0; left: 0; height: 3px; background: var(--accent); transition: width 0.4s ease; z-index: 100; }
+    
+    .index-grid { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(var(--ink-rgb), 0.97); display: none; grid-template-columns: repeat(4, 1fr); gap: var(--sp-5); padding: var(--sp-10); z-index: 200; overflow-y: auto; backdrop-filter: blur(20px); }
+    .index-grid.active { display: grid; }
+    .index-item { padding: var(--sp-6); border: 1px solid rgba(255,255,255,0.15); cursor: pointer; transition: all 0.25s; }
+    .index-item:hover { border-color: var(--accent); background: rgba(201,162,39,0.15); }
+    .index-item .num { font-family: 'Playfair Display', serif; font-size: 1.5rem; font-weight: 700; color: var(--accent); margin-bottom: var(--sp-2); }
+    .index-item .title { font-size: 0.95rem; line-height: 1.4; }
+    
+    .quote-block { font-family: 'Noto Serif SC', serif; font-size: clamp(1.5rem, 3.5vw, 2.2rem); line-height: 1.5; font-style: italic; opacity: 0.9; }
+    .quote-block::before { content: '"'; font-size: 3em; color: var(--accent); line-height: 0; vertical-align: -0.5em; margin-right: 0.1em; }
+    
+    @keyframes fadeUp { from { opacity: 0; transform: translateY(40px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    .slide.active > * { animation: fadeUp 0.7s ease-out forwards; }
+    .slide.active > *:nth-child(1) { animation-delay: 0.05s; }
+    .slide.active > *:nth-child(2) { animation-delay: 0.15s; }
+    .slide.active > *:nth-child(3) { animation-delay: 0.25s; }
+    .slide.active > *:nth-child(4) { animation-delay: 0.35s; }
+    .slide.active > *:nth-child(5) { animation-delay: 0.45s; }
+    .slide > * { opacity: 0; }
+  </style>
+</head>
+<body>
+  <div class="progress" id="progress"></div>
+  
+  <div class="deck" id="deck">
+    
+    <!-- Slide 1: 封面 -->
+    <section class="slide hero" data-layout="1">
+      <svg class="fluid-bg" viewBox="0 0 100 100" preserveAspectRatio="none">
+        <defs>
+          <radialGradient id="g1" cx="20%" cy="30%">
+            <stop offset="0%" stop-color="#c9a227" stop-opacity="0.8"/>
+            <stop offset="100%" stop-color="transparent"/>
+          </radialGradient>
+          <radialGradient id="g2" cx="80%" cy="70%">
+            <stop offset="0%" stop-color="#d4a574" stop-opacity="0.6"/>
+            <stop offset="100%" stop-color="transparent"/>
+          </radialGradient>
+        </defs>
+        <rect width="100" height="100" fill="url(#g1)"/>
+        <rect width="100" height="100" fill="url(#g2)"/>
+      </svg>
+      <div style="text-align: center; max-width: 900px; margin: 0 auto;">
+        <p class="kicker" style="color: var(--accent); margin-bottom: var(--sp-6);">ReAct Agent CLI</p>
+        <h1 class="h-hero">Agent 核心模块介绍</h1>
+        <div style="width: 80px; height: 2px; background: var(--accent); margin: var(--sp-8) auto;"></div>
+        <p class="h-sub" style="opacity: 0.7;">tools.py · cli.py · session.py</p>
+      </div>
+      <div class="chrome-min">01 / 10</div>
+    </section>
+    
+    <!-- Slide 2: 什么是 ReAct -->
+    <section class="slide light" data-layout="10">
+      <div class="grid-2-7-5" style="height: 100%; align-items: center;">
+        <div>
+          <p class="kicker" style="margin-bottom: var(--sp-4);">Background</p>
+          <h2 class="h-xl">ReAct<br/>Agent</h2>
+        </div>
+        <div>
+          <p class="lead" style="margin-bottom: var(--sp-7);">
+            给 Agent 一个问题，它不是直接回答，而是会先 <strong>Reasoning（思考）</strong>，然后 <strong>Acting（调用工具执行）</strong>，得到结果后再思考、再行动，循环直到得到最终答案。
+          </p>
+          <div class="callout">
+            <p class="h-md">核心循环</p>
+            <p class="lead" style="margin-top: var(--sp-3); font-size: 1rem;">思考 → 执行 → 思考 → 执行 → ... → 答案</p>
+          </div>
+        </div>
+        <div>
+          <div style="display: flex; flex-direction: column; gap: var(--sp-5);">
+            <div class="stat-card">
+              <span class="stat-nb" style="color: var(--accent);">01</span>
+              <span class="stat-label">tools.py</span>
+              <span class="h-md">工具执行</span>
+            </div>
+            <div class="stat-card">
+              <span class="stat-nb" style="color: var(--accent);">02</span>
+              <span class="stat-label">cli.py</span>
+              <span class="h-md">用户界面</span>
+            </div>
+            <div class="stat-card">
+              <span class="stat-nb" style="color: var(--accent);">03</span>
+              <span class="stat-label">session.py</span>
+              <span class="h-md">记忆系统</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="chrome">
+        <p class="foot">Agent Architecture</p>
+        <p class="foot">02 / 10</p>
+      </div>
+    </section>
+    
+    <!-- Slide 3: tools.py 幕封 -->
+    <section class="slide hero" data-layout="2">
+      <svg class="fluid-bg" viewBox="0 0 100 100" preserveAspectRatio="none">
+        <defs>
+          <radialGradient id="g3" cx="70%" cy="40%">
+            <stop offset="0%" stop-color="#c9a227" stop-opacity="0.7"/>
+            <stop offset="100%" stop-color="transparent"/>
+          </radialGradient>
+        </defs>
+        <rect width="100" height="100" fill="url(#g3)"/>
+      </svg>
+      <div style="text-align: center;">
+        <p class="kicker" style="color: var(--accent); margin-bottom: var(--sp-5);">Module 01</p>
+        <h1 class="h-hero">tools.py</h1>
+        <div style="width: 60px; height: 2px; background: var(--accent); margin: var(--sp-6) auto;"></div>
+        <p class="h-sub" style="opacity: 0.6;">Agent 与外部世界交互的桥梁</p>
+      </div>
+      <div class="chrome-min">03 / 10</div>
+    </section>
+    
+    <!-- Slide 4: 装饰器模式 -->
+    <section class="slide light" data-layout="6">
+      <p class="kicker" style="margin-bottom: var(--sp-5);">01 · Tools.py</p>
+      <h2 class="h-xl" style="margin-bottom: var(--sp-7);">装饰器模式：工具注册机制</h2>
+      <div class="pipeline-section">
+        <p class="pipeline-label">代码示例</p>
+        <pre>@tool(
+    name="read_file",
+    description="读取文件内容并返回",
+    schema={...}
+)
+def read_file(args: dict, ctx: ToolContext) -> str:
+    # 读取逻辑
+    return content</pre>
+      </div>
+      <div class="grid-2-6-6" style="margin-top: var(--sp-6);">
+        <div></div>
+        <div class="callout">
+          <p class="h-md" style="margin-bottom: var(--sp-3);">优势</p>
+          <p class="lead" style="font-size: 0.95rem;">元信息内聚在函数本身，看到函数就知道它的名称、描述、参数</p>
+        </div>
+        <div class="callout">
+          <p class="h-md" style="margin-bottom: var(--sp-3);">好处</p>
+          <ul style="list-style: none; font-size: 0.9rem; line-height: 2;">
+            <li>✓ 不需要到处找配置文件</li>
+            <li>✓ 自动注册到 TOOL_REGISTRY</li>
+            <li>✓ 运行时动态改变状态</li>
+          </ul>
+        </div>
+      </div>
+      <div class="chrome">
+        <p class="foot">Tool Registration</p>
+        <p class="foot">04 / 10</p>
+      </div>
+    </section>
+    
+    <!-- Slide 5: 6个内置工具 -->
+    <section class="slide hero light" data-layout="3">
+      <p class="kicker" style="margin-bottom: var(--sp-5);">01 · Tools.py</p>
+      <h2 class="h-xl" style="margin-bottom: var(--sp-8);">6 个内置工具</h2>
+      <div class="grid-3" style="align-items: start;">
+        <div class="frame" style="background: rgba(26,26,46,0.05); padding: var(--sp-7);">
+          <p class="stat-nb" style="color: var(--accent); font-size: 2.5rem;">01</p>
+          <p class="h-md" style="margin-top: var(--sp-3);">read_file</p>
+          <p class="lead" style="font-size: 0.85rem; margin-top: var(--sp-2); opacity: 0.7;">读取文件内容并返回</p>
+        </div>
+        <div class="frame" style="background: rgba(26,26,46,0.05); padding: var(--sp-7);">
+          <p class="stat-nb" style="color: var(--accent); font-size: 2.5rem;">02</p>
+          <p class="h-md" style="margin-top: var(--sp-3);">write_file</p>
+          <p class="lead" style="font-size: 0.85rem; margin-top: var(--sp-2); opacity: 0.7;">写入文件内容</p>
+        </div>
+        <div class="frame" style="background: rgba(26,26,46,0.05); padding: var(--sp-7);">
+          <p class="stat-nb" style="color: var(--accent); font-size: 2.5rem;">03</p>
+          <p class="h-md" style="margin-top: var(--sp-3);">list_dir</p>
+          <p class="lead" style="font-size: 0.85rem; margin-top: var(--sp-2); opacity: 0.7;">列出目录内容</p>
+        </div>
+        <div class="frame" style="background: rgba(26,26,46,0.05); padding: var(--sp-7);">
+          <p class="stat-nb" style="color: var(--accent); font-size: 2.5rem;">04</p>
+          <p class="h-md" style="margin-top: var(--sp-3);">change_dir</p>
+          <p class="lead" style="font-size: 0.85rem; margin-top: var(--sp-2); opacity: 0.7;">切换工作目录</p>
+        </div>
+        <div class="frame" style="background: rgba(26,26,46,0.05); padding: var(--sp-7);">
+          <p class="stat-nb" style="color: var(--accent); font-size: 2.5rem;">05</p>
+          <p class="h-md" style="margin-top: var(--sp-3);">shell</p>
+          <p class="lead" style="font-size: 0.85rem; margin-top: var(--sp-2); opacity: 0.7;">执行 shell 命令</p>
+        </div>
+        <div class="frame" style="background: rgba(26,26,46,0.05); padding: var(--sp-7);">
+          <p class="stat-nb" style="color: var(--accent); font-size: 2.5rem;">06</p>
+          <p class="h-md" style="margin-top: var(--sp-3);">search_files</p>
+          <p class="lead" style="font-size: 0.85rem; margin-top: var(--sp-2); opacity: 0.7;">搜索文件</p>
+        </div>
+      </div>
+      <div class="chrome">
+        <p class="foot">Built-in Tools</p>
+        <p class="foot">05 / 10</p>
+      </div>
+    </section>
+    
+    <!-- Slide 6: cli.py 幕封 -->
+    <section class="slide hero" data-layout="2">
+      <svg class="fluid-bg" viewBox="0 0 100 100" preserveAspectRatio="none">
+        <defs>
+          <radialGradient id="g4" cx="30%" cy="60%">
+            <stop offset="0%" stop-color="#d4a574" stop-opacity="0.7"/>
+            <stop offset="100%" stop-color="transparent"/>
+          </radialGradient>
+        </defs>
+        <rect width="100" height="100" fill="url(#g4)"/>
+      </svg>
+      <div style="text-align: center;">
+        <p class="kicker" style="color: var(--accent); margin-bottom: var(--sp-5);">Module 02</p>
+        <h1 class="h-hero">cli.py</h1>
+        <div style="width: 60px; height: 2px; background: var(--accent); margin: var(--sp-6) auto;"></div>
+        <p class="h-sub" style="opacity: 0.6;">用户和 Agent 交互的界面</p>
+      </div>
+      <div class="chrome-min">06 / 10</div>
+    </section>
+    
+    <!-- Slide 7: 斜杠命令 -->
+    <section class="slide light" data-layout="4">
+      <p class="kicker" style="margin-bottom: var(--sp-5);">02 · Cli.py</p>
+      <h2 class="h-xl" style="margin-bottom: var(--sp-7);">斜杠命令系统</h2>
+      <div class="grid-3">
+        <div style="border: 1px solid rgba(26,26,46,0.15); padding: var(--sp-6);">
+          <p class="stat-nb" style="color: var(--accent); font-size: 1.8rem; margin-bottom: var(--sp-4);">会话管理</p>
+          <ul style="list-style: none; font-size: 0.9rem; line-height: 2.2;">
+            <li><code>/session new</code></li>
+            <li><code>/session list</code></li>
+            <li><code>/session load &lt;id&gt;</code></li>
+            <li><code>/session info</code></li>
+            <li><code>/session delete &lt;id&gt;</code></li>
+          </ul>
+        </div>
+        <div style="border: 1px solid rgba(26,26,46,0.15); padding: var(--sp-6);">
+          <p class="stat-nb" style="color: var(--accent); font-size: 1.8rem; margin-bottom: var(--sp-4);">调试辅助</p>
+          <ul style="list-style: none; font-size: 0.9rem; line-height: 2.2;">
+            <li><code>/history</code></li>
+            <li><code>/clear</code></li>
+            <li><code>/tools</code></li>
+            <li><code>/config</code></li>
+          </ul>
+        </div>
+        <div style="border: 1px solid rgba(26,26,46,0.15); padding: var(--sp-6);">
+          <p class="stat-nb" style="color: var(--accent); font-size: 1.8rem; margin-bottom: var(--sp-4);">导航</p>
+          <ul style="list-style: none; font-size: 0.9rem; line-height: 2.2;">
+            <li><code>/cd &lt;path&gt;</code></li>
+            <li style="margin-top: var(--sp-5);">
+              <span style="opacity: 0.7;">Tab 补全</span>
+            </li>
+            <li>
+              <span style="opacity: 0.7;">上下键历史输入</span>
+            </li>
+          </ul>
+        </div>
+      </div>
+      <div class="chrome">
+        <p class="foot">Slash Commands</p>
+        <p class="foot">07 / 10</p>
+      </div>
+    </section>
+    
+    <!-- Slide 8: session.py 幕封 -->
+    <section class="slide hero" data-layout="2">
+      <svg class="fluid-bg" viewBox="0 0 100 100" preserveAspectRatio="none">
+        <defs>
+          <radialGradient id="g5" cx="60%" cy="30%">
+            <stop offset="0%" stop-color="#c9a227" stop-opacity="0.6"/>
+            <stop offset="100%" stop-color="transparent"/>
+          </radialGradient>
+        </defs>
+        <rect width="100" height="100" fill="url(#g5)"/>
+      </svg>
+      <div style="text-align: center;">
+        <p class="kicker" style="color: var(--accent); margin-bottom: var(--sp-5);">Module 03</p>
+        <h1 class="h-hero">session.py</h1>
+        <div style="width: 60px; height: 2px; background: var(--accent); margin: var(--sp-6) auto;"></div>
+        <p class="h-sub" style="opacity: 0.6;">Agent 的记忆系统</p>
+      </div>
+      <div class="chrome-min">08 / 10</div>
+    </section>
+    
+    <!-- Slide 9: Session 持久化 -->
+    <section class="slide light" data-layout="9">
+      <p class="kicker" style="margin-bottom: var(--sp-5);">03 · Session.py</p>
+      <h2 class="h-xl" style="margin-bottom: var(--sp-7);">存储结构与生命周期</h2>
+      <div class="grid-2-8-4" style="align-items: start;">
+        <div>
+          <pre style="font-size: 0.85rem; background: rgba(26,26,46,0.03); padding: var(--sp-6);">.sessions/
+├── index.json
+└── 20260420-143022-a3f7b1.json</pre>
+        </div>
+        <div>
+          <table class="table-simple" style="margin-bottom: var(--sp-6);">
+            <thead>
+              <tr>
+                <th>Session ID 格式</th>
+                <th>说明</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>YYYYMMDD-HHMMSS-&lt;随机&gt;</code></td>
+                <td>时间戳 + 十六进制，保证唯一性</td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="pipeline">
+            <div class="step">
+              <span class="step-nb">→</span>
+              <div>
+                <p class="step-title">无参数</p>
+                <p class="step-desc">创建新会话</p>
+              </div>
+            </div>
+            <div class="step">
+              <span class="step-nb">→</span>
+              <div>
+                <p class="step-title">--resume</p>
+                <p class="step-desc">恢复最近一次</p>
+              </div>
+            </div>
+            <div class="step">
+              <span class="step-nb">→</span>
+              <div>
+                <p class="step-title">--session &lt;id&gt;</p>
+                <p class="step-desc">恢复指定会话</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div>
+          <div class="callout">
+            <p class="h-md">Index 作用</p>
+            <p class="lead" style="font-size: 0.9rem; margin-top: var(--sp-3);">快速列出所有会话，不需要扫描目录</p>
+          </div>
+        </div>
+      </div>
+      <div class="chrome">
+        <p class="foot">Session Persistence</p>
+        <p class="foot">09 / 10</p>
+      </div>
+    </section>
+    
+    <!-- Slide 10: 总结 -->
+    <section class="slide hero" data-layout="8">
+      <svg class="fluid-bg" viewBox="0 0 100 100" preserveAspectRatio="none">
+        <defs>
+          <radialGradient id="g6" cx="50%" cy="50%">
+            <stop offset="0%" stop-color="#c9a227" stop-opacity="0.5"/>
+            <stop offset="100%" stop-color="transparent"/>
+          </radialGradient>
+        </defs>
+        <rect width="100" height="100" fill="url(#g6)"/>
+      </svg>
+      <p class="kicker" style="color: var(--accent); margin-bottom: var(--sp-5); text-align: center;">Summary</p>
+      <h2 class="h-xl" style="text-align: center; margin-bottom: var(--sp-8);">三个模块各司其职</h2>
+      
+      <div style="display: flex; flex-direction: column; align-items: center; gap: var(--sp-5);">
+        <div style="display: flex; gap: var(--sp-8);">
+          <div style="border: 1px solid rgba(255,255,255,0.3); padding: var(--sp-6) var(--sp-10); text-align: center;">
+            <p class="kicker" style="opacity: 0.5;">CLI</p>
+            <p class="h-md" style="margin-top: var(--sp-2);">cli.py</p>
+            <p class="lead" style="font-size: 0.85rem; margin-top: var(--sp-2); opacity: 0.6;">用户界面</p>
+          </div>
+        </div>
+        <div style="font-size: 1.5rem; opacity: 0.4;">↑ ↓</div>
+        <div style="border: 2px solid var(--accent); padding: var(--sp-6) var(--sp-12); text-align: center;">
+          <p class="kicker" style="color: var(--accent); opacity: 0.7;">CORE</p>
+          <p class="h-md" style="margin-top: var(--sp-2);">AgentLoop</p>
+          <p class="lead" style="font-size: 0.85rem; margin-top: var(--sp-2); opacity: 0.6;">核心循环</p>
+        </div>
+        <div style="font-size: 1.5rem; opacity: 0.4;">↑ ↓</div>
+        <div style="display: flex; gap: var(--sp-8);">
+          <div style="border: 1px solid rgba(255,255,255,0.3); padding: var(--sp-6) var(--sp-8); text-align: center;">
+            <p class="kicker" style="opacity: 0.5;">TOOLS</p>
+            <p class="h-md" style="margin-top: var(--sp-2);">tools.py</p>
+            <p class="lead" style="font-size: 0.85rem; margin-top: var(--sp-2); opacity: 0.6;">工具执行</p>
+          </div>
+          <div style="border: 1px solid rgba(255,255,255,0.3); padding: var(--sp-6) var(--sp-8); text-align: center;">
+            <p class="kicker" style="opacity: 0.5;">MEMORY</p>
+            <p class="h-md" style="margin-top: var(--sp-2);">session.py</p>
+            <p class="lead" style="font-size: 0.85rem; margin-top: var(--sp-2); opacity: 0.6;">会话管理</p>
+          </div>
+        </div>
+      </div>
+      <div class="chrome-min">10 / 10</div>
+    </section>
+    
+  </div>
+  
+  <div class="controls">
+    <button class="ctrl-btn" onclick="prevSlide()"><i data-lucide="chevron-left"></i></button>
+    <button class="ctrl-btn" onclick="toggleIndex()"><i data-lucide="layout-grid"></i></button>
+    <button class="ctrl-btn" onclick="nextSlide()"><i data-lucide="chevron-right"></i></button>
+  </div>
+  
+  <div class="index-grid" id="indexGrid"></div>
+  
+  <script>
+    let currentSlide = 0;
+    const slides = document.querySelectorAll('.slide');
+    const deck = document.getElementById('deck');
+    const progress = document.getElementById('progress');
+    const indexGrid = document.getElementById('indexGrid');
+    
+    function init() {
+      lucide.createIcons();
+      updateSlide();
+      buildIndex();
+      document.addEventListener('keydown', handleKeydown);
+      document.addEventListener('wheel', handleWheel);
+      document.addEventListener('touchstart', handleTouchStart, { passive: true });
+      document.addEventListener('touchend', handleTouchEnd, { passive: true });
+    }
+    
+    function updateSlide() {
+      deck.style.transform = `translateX(-${currentSlide * 100}%)`;
+      progress.style.width = `${((currentSlide + 1) / slides.length) * 100}%`;
+      slides.forEach((s, i) => s.classList.toggle('active', i === currentSlide));
+    }
+    
+    function nextSlide() {
+      if (currentSlide < slides.length - 1) {
+        currentSlide++;
+        updateSlide();
+      }
+    }
+    
+    function prevSlide() {
+      if (currentSlide > 0) {
+        currentSlide--;
+        updateSlide();
+      }
+    }
+    
+    function goToSlide(n) {
+      currentSlide = n;
+      updateSlide();
+      toggleIndex();
+    }
+    
+    function toggleIndex() {
+      indexGrid.classList.toggle('active');
+    }
+    
+    function buildIndex() {
+      slides.forEach((s, i) => {
+        const item = document.createElement('div');
+        item.className = 'index-item';
+        item.innerHTML = `<p class="num">${String(i + 1).padStart(2, '0')}</p><p class="title">${s.querySelector('.h-hero, .h-xl')?.textContent || 'Slide ' + (i + 1)}</p>`;
+        item.onclick = () => goToSlide(i);
+        indexGrid.appendChild(item);
+      });
+    }
+    
+    function handleKeydown(e) {
+      if (indexGrid.classList.contains('active') && e.key === 'Escape') {
+        toggleIndex();
+        return;
+      }
+      if (e.key === 'ArrowRight' || e.key === ' ') nextSlide();
+      else if (e.key === 'ArrowLeft') prevSlide();
+      else if (e.key === 'Escape') toggleIndex();
+      else if (e.key >= '1' && e.key <= '9') {
+        const n = parseInt(e.key) - 1;
+        if (n < slides.length) goToSlide(n);
+      }
+    }
+    
+    let touchStartX = 0;
+    function handleTouchStart(e) { touchStartX = e.touches[0].clientX; }
+    function handleTouchEnd(e) {
+      const diff = touchStartX - e.changedTouches[0].clientX;
+      if (Math.abs(diff) > 50) diff > 0 ? nextSlide() : prevSlide();
+    }
+    
+    let wheelTimeout;
+    function handleWheel(e) {
+      clearTimeout(wheelTimeout);
+      wheelTimeout = setTimeout(() => {
+        if (e.deltaY > 0) nextSlide();
+        else prevSlide();
+      }, 50);
+    }
+    
+    init();
+  </script>
+</body>
+</html>
