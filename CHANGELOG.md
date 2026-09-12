@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.5.3] - 2026-09-12
+
+### Fixed
+- **Web 前端 4 个页面加载空白**：后端基础路由（`/api/sessions`、`/api/skills`、`/api/config`）注册为带尾斜杠路径，前端 `api.ts` 却用不带斜杠调用，导致 404。修复：`frontend/src/services/api.ts` 改用规范路径（`/sessions/`、`/skills/`、`/config/`）。波及页面：会话列表/新建、技能库、设置。
+
 ## [0.5.2] - 2026-06-10
 
 ### Fixed

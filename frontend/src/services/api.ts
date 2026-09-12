@@ -35,9 +35,9 @@ async function fetchApi<T>(path: string, options?: RequestInit): Promise<T> {
 
 // 会话 API
 export const sessionApi = {
-  list: () => fetchApi<Session[]>('/sessions'),
+  list: () => fetchApi<Session[]>('/sessions/'),
   get: (id: string) => fetchApi<Session>(`/sessions/${id}`),
-  create: (data: CreateSessionRequest) => fetchApi<Session>('/sessions', {
+  create: (data: CreateSessionRequest) => fetchApi<Session>('/sessions/', {
     method: 'POST',
     body: JSON.stringify(data),
   }),
@@ -98,7 +98,7 @@ export const toolsApi = {
 
 // Skill API
 export const skillsApi = {
-  list: () => fetchApi<Skill[]>('/skills'),
+  list: () => fetchApi<Skill[]>('/skills/'),
   get: (name: string) => fetchApi<Skill>(`/skills/${name}`),
   getContent: (name: string) => fetchApi<{ content: string }>(`/skills/${name}/content`),
   getAvailable: () => fetchApi<Skill[]>('/skills/available'),
@@ -133,8 +133,8 @@ export const orchestratorApi = {
 
 // 配置 API
 export const configApi = {
-  get: () => fetchApi<AppConfig>('/config'),
-  update: (config: Partial<AppConfig>) => fetchApi<void>('/config', {
+  get: () => fetchApi<AppConfig>('/config/'),
+  update: (config: Partial<AppConfig>) => fetchApi<void>('/config/', {
     method: 'PUT',
     body: JSON.stringify(config),
   }),
