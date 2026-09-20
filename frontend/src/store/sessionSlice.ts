@@ -70,10 +70,20 @@ const sessionSlice = createSlice({
         state.error = null
       })
       .addCase(fetchSessions.fulfilled, (state, action) => {
-        state.sessions = action.payload
         state.loading = false
-        if (!state.currentSessionId && action.payload.length > 0) {
-          state.currentSessionId = action.payload[0].id
+        const fresh: Session[] = action.payload
+        // 记录当前已展示会话的位置，合并时保持不变，避免每次发送消息后整表按 updated_at
+        // 重新排序，把用户选中的历史会话「挤走」；仅新增的会话才会被放到最前。
+        const keepIndex = new Map<string, number>()
+        state.sessions.forEach((s, i) => keepIndex.set(s.id, i))
+        state.sessions = fresh
+          .map(s => ({ s, ord: keepIndex.get(s.id) ?? -1 }))
+          .sort((a, b) => a.ord - b.ord)
+          .map(x => x.s)
+          // 过滤掉没有任何对话的空会话；刚新建、正选中在用的空会话仍保留可见
+          .filter(s => (s.message_count || 0) > 0 || s.id === state.currentSessionId)
+        if (!state.currentSessionId && state.sessions.length > 0) {
+          state.currentSessionId = state.sessions[0].id
         }
       })
       .addCase(fetchSessions.rejected, (state, action) => {

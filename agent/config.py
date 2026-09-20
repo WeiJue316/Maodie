@@ -49,6 +49,42 @@ class LLMConfig:
     models: list[ModelPreset] = field(default_factory=list)
 
 
+# 运行时 LLMConfig 中「当前生效」的字段，用于拷贝后覆盖 active 预置的 key/base_url
+_LLM_MERGE_FIELDS = (
+    "provider",
+    "model",
+    "base_url",
+    "api_key",
+    "temperature",
+    "timeout",
+    "max_retries",
+    "streaming",
+)
+
+
+def active_llm_config(cfg: "AgentConfig") -> LLMConfig:
+    """按当前选中的 model 解析出真正生效的 LLMConfig。
+
+    配置里 model 可能是全局的 MiniMax，也可能切到 `llm.models` 中的某个预置
+    （带独立 base_url / api_key）。此函数把该预置的 base_url / api_key 合并进
+    拷贝，使「切换模型/Provider 后请求用对应预置的端点与密钥」成立。
+    未命中的情况回落到全局值；api_key 一律只在服务端解析，永不回传前端。
+    """
+    merged = LLMConfig()
+    for f in _LLM_MERGE_FIELDS:
+        setattr(merged, f, getattr(cfg.llm, f))
+
+    active = next((m for m in cfg.llm.models if m.name == cfg.llm.model), None)
+    if active:
+        if active.base_url:
+            merged.base_url = active.base_url
+        if active.api_key:
+            merged.api_key = active.api_key
+        if active.provider:
+            merged.provider = active.provider
+    return merged
+
+
 @dataclass
 class SessionConfig:
     dir: str = ".sessions"
@@ -237,6 +273,86 @@ def _deep_merge(base: dict, override: dict) -> dict:
         else:
             result[k] = v
     return result
+
+
+RUNTIME_CONFIG_NAME = ".runtime_config.yaml"
+
+# Web 可编辑的顶层配置段 → 字段映射，用于运行时覆盖文件的读写
+_RUNTIME_SECTIONS: dict[str, tuple[str, ...]] = {
+    "llm": ("provider", "model", "base_url", "temperature", "timeout", "streaming"),
+    "agent": ("max_iterations", "work_dir", "system_prompt"),
+    "session": ("dir", "max_history", "auto_save"),
+    "memory": ("enabled",),
+    "observation": ("enabled", "db_path"),
+    "vectordb": ("enabled",),
+    "memory_search": ("enabled", "search_limit", "promotion_threshold"),
+}
+
+
+def _write_yaml(path: Path, data: dict[str, Any]) -> None:
+    with open(path, "w", encoding="utf-8") as f:
+        yaml.safe_dump(data, f, allow_unicode=True, sort_keys=False)
+
+
+def _apply_runtime_overlay(cfg: AgentConfig, data: dict[str, Any]) -> None:
+    """把 Web 保存的运行时配置叠加到已构建的对象上（优先级最高）。"""
+    llm = data.get("llm") or {}
+    for k in _RUNTIME_SECTIONS["llm"]:
+        if k in llm:
+            setattr(cfg.llm, k, llm[k])
+    if llm.get("api_key"):
+        cfg.llm.api_key = llm["api_key"]
+    if isinstance(llm.get("models"), list):
+        cfg.llm.models = [
+            ModelPreset(
+                name=m.get("name", ""),
+                provider=m.get("provider", ""),
+                base_url=m.get("base_url", ""),
+                api_key=m.get("api_key", ""),
+            )
+            for m in llm["models"]
+            if isinstance(m, dict) and m.get("name")
+        ]
+
+    for sec, keys in _RUNTIME_SECTIONS.items():
+        if sec == "llm":
+            continue
+        obj = data.get(sec) or {}
+        # "agent" 段的 max_iterations/work_dir/system_prompt 是 AgentConfig 顶层字段
+        src = cfg if sec == "agent" else getattr(cfg, sec)
+        for k in keys:
+            if k in obj:
+                setattr(src, k, obj[k])
+
+
+def save_config(cfg: AgentConfig, *, include_global_key: bool = False) -> Path:
+    """把用户可在 Web 编辑的运行时配置持久化到独立的 `.runtime_config.yaml`。
+
+    不改动私有 `config.yaml`（其中的 mcp URL 令牌与 api key 占位保持原样），
+    api key 只写本地个人的、已被 gitignore 的覆盖文件。
+    """
+    llm: dict[str, Any] = {
+        k: getattr(cfg.llm, k)
+        for k in _RUNTIME_SECTIONS["llm"]
+    }
+    if include_global_key and cfg.llm.api_key:
+        llm["api_key"] = cfg.llm.api_key
+    llm["models"] = [
+        {"name": m.name, "provider": m.provider, "base_url": m.base_url}
+        | ({"api_key": m.api_key} if m.api_key else {})
+        for m in cfg.llm.models
+    ]
+
+    out: dict[str, Any] = {"llm": llm}
+    for sec, keys in _RUNTIME_SECTIONS.items():
+        if sec == "llm":
+            continue
+        src = cfg if sec == "agent" else getattr(cfg, sec)
+        out[sec] = {k: getattr(src, k) for k in keys}
+
+    path = cfg.config_path.parent / RUNTIME_CONFIG_NAME
+    _write_yaml(path, out)
+    return path
 
 
 def _read_yaml(path: Path) -> dict[str, Any]:
@@ -434,5 +550,10 @@ def load_config(config_path: Path | None = None) -> AgentConfig:
 
     # 4. 环境变量覆盖
     _apply_env_overrides(cfg)
+
+    # 5. 运行时覆盖（Web 保存的配置）—— 优先级最高，重启后仍生效
+    runtime_path = config_path.parent / RUNTIME_CONFIG_NAME
+    if runtime_path.exists():
+        _apply_runtime_overlay(cfg, _read_yaml(runtime_path))
 
     return cfg

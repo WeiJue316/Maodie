@@ -5,6 +5,7 @@ export interface Session {
   created_at: string
   updated_at: string
   work_dir: string
+  message_count?: number
   messages: Message[]
 }
 
@@ -133,6 +134,7 @@ export interface AppConfig {
     temperature: number
     timeout: number
     streaming: boolean
+    models?: { name: string; provider: string; base_url: string; api_key?: string }[]
   }
   agent: {
     max_iterations: number

@@ -34,3 +34,6 @@ config.yaml
 # 个人/第三方技能(仅本地, 不上传)
 agent-skills/
 skills_*.json
+
+# Web 运行时保存的配置覆盖（本地私有，勿提交密钥）
+.runtime_config.yaml

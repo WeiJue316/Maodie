@@ -8,7 +8,17 @@ import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { SpotlightCard } from '@/components/effects/SpotlightCard'
 import { FadeIn } from '@/components/effects/FadeIn'
+import DecryptedText from '@/components/effects/DecryptedText'
 import { Plus, Send, Trash2, MessageSquare } from 'lucide-react'
+
+// 解密动画时长随回复长度伸缩：短回复快速收尾，长回复从容展开。
+// 以每帧 speed 反推总时长，约 0.5s ~ 2s。
+const revealDurationFor = (totalLen: number) => {
+  const maxIterations = 12
+  const ms = 420 + totalLen * 5 // ≈5ms/字符，100 字≈0.9s
+  const capped = Math.min(ms, 2000)
+  return Math.round(capped / maxIterations)
+}
 
 export default function SessionPage() {
   const dispatch = useDispatch<AppDispatch>()
@@ -18,13 +28,28 @@ export default function SessionPage() {
   const [sending, setSending] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  // 记录当前正在展示的会话 id，用于在异步加载/流式回填时判断会话是否已被切换
+  const activeSessionRef = useRef<string | null>(null)
+  // 标记本轮刚生成、需要以「解密」动画呈现的 assistant 消息对象（引用唯一，切换会话时清空）
+  const revealSetRef = useRef<Set<Message>>(new Set())
 
   useEffect(() => { dispatch(fetchSessions()) }, [dispatch])
-  useEffect(() => { if (currentSessionId) loadMessages(currentSessionId) }, [currentSessionId])
+
+  useEffect(() => {
+    activeSessionRef.current = currentSessionId
+    revealSetRef.current.clear()
+    if (!currentSessionId) { setMessages([]); return }
+    // 切换会话时先立即清空旧消息，避免把上一个会话的内容串到新页面里
+    setMessages([])
+    loadMessages(currentSessionId)
+  }, [currentSessionId])
 
   const loadMessages = async (sessionId: string) => {
-    try { setMessages(await sessionApi.getMessages(sessionId)) }
-    catch (e) { console.error('Failed to load messages:', e) }
+    try {
+      const msgs = await sessionApi.getMessages(sessionId)
+      // 若请求返回前用户已切走，直接丢弃，防止乱序覆盖别的会话
+      if (activeSessionRef.current === sessionId) setMessages(msgs)
+    } catch (e) { console.error('Failed to load messages:', e) }
   }
 
   const handleCreateSession = async () => {
@@ -38,13 +63,15 @@ export default function SessionPage() {
 
   const handleSend = async () => {
     if (!inputValue.trim() || !currentSessionId || sending) return
+    const sessionId = currentSessionId  // 固定本次发送所属的会话，防止流式过程中切走导致串页
     const content = inputValue
     setInputValue('')
     setSending(true)
+    if (activeSessionRef.current !== sessionId) return
     setMessages(prev => [...prev, { role: 'user', content }])
 
     try {
-      const response = await fetch(`/api/sessions/${currentSessionId}/chat`, {
+      const response = await fetch(`/api/sessions/${sessionId}/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ content }),
@@ -53,9 +80,10 @@ export default function SessionPage() {
       const decoder = new TextDecoder()
       let assistantContent = ''
 
-      setMessages(prev => [...prev, { role: 'assistant', content: '' }])
+      if (activeSessionRef.current === sessionId)
+        setMessages(prev => [...prev, { role: 'assistant', content: '' }])
 
-      while (reader) {
+      while (reader && activeSessionRef.current === sessionId) {
         const { done, value } = await reader.read()
         if (done) break
         const text = decoder.decode(value)
@@ -65,21 +93,29 @@ export default function SessionPage() {
             const data = JSON.parse(line.slice(6))
             if (data.type === 'token') {
               assistantContent += data.content
-              setMessages(prev => {
-                const msgs = [...prev]
-                const last = msgs[msgs.length - 1]
-                if (last.role === 'assistant') last.content = assistantContent
-                return msgs
-              })
+              // 仅在用户仍停留在这个会话时才继续收流，否则丢弃，避免串进别的会话
+              if (activeSessionRef.current !== sessionId) return
             }
           } catch {}
         }
       }
-      dispatch(fetchSessions())
+      // 整段回复收完后，一次性写入并标记为「解密」动画呈现（期间气泡只显示思考动画）
+      if (activeSessionRef.current === sessionId) {
+        setMessages(prev => {
+          const msgs = [...prev]
+          const last = msgs[msgs.length - 1]
+          if (last?.role === 'assistant') {
+            last.content = assistantContent
+            revealSetRef.current.add(last)
+          }
+          return msgs
+        })
+        dispatch(fetchSessions())
+      }
     } catch {
-      setMessages(prev => prev.slice(0, -1))
+      if (activeSessionRef.current === sessionId) setMessages(prev => prev.slice(0, -1))
     } finally {
-      setSending(false)
+      if (activeSessionRef.current === sessionId) setSending(false)
     }
   }
 
@@ -99,9 +135,9 @@ export default function SessionPage() {
   }
 
   return (
-    <div className="flex h-full">
+    <div className="flex h-full min-h-0">
       {/* Session list */}
-      <div className="w-[280px] border-r border-white/[0.06] flex flex-col shrink-0">
+      <div className="w-[280px] border-r border-white/[0.06] flex flex-col shrink-0 min-h-0">
         <div className="px-4 py-3 border-b border-white/[0.04] flex items-center justify-between">
           <span className="text-[13px] font-semibold text-white/50">会话列表</span>
           <Button size="sm" onClick={handleCreateSession} className="h-7 px-2.5 text-xs bg-[#2997FF] hover:bg-[#40A9FF] text-white">
@@ -109,7 +145,7 @@ export default function SessionPage() {
             新建
           </Button>
         </div>
-        <ScrollArea className="flex-1">
+        <ScrollArea className="flex-1 min-h-0">
           <div className="p-2">
             {loading ? (
               <div className="text-center py-8 text-white/30 text-sm">加载中...</div>
@@ -147,10 +183,10 @@ export default function SessionPage() {
       </div>
 
       {/* Chat */}
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col min-h-0">
         {currentSessionId ? (
           <>
-            <ScrollArea className="flex-1 p-6">
+            <div className="flex-1 min-h-0 overflow-y-auto p-6 pr-3 [scrollbar-width:thin] [scrollbar-color:rgba(255,255,255,0.3)_transparent]">
               <div className="space-y-5 max-w-[85%]">
                 {messages.map((msg, i) => (
                   <FadeIn key={i} delay={i < 5 ? i * 50 : 0} direction={msg.role === 'user' ? 'right' : 'left'}>
@@ -174,6 +210,15 @@ export default function SessionPage() {
                         `}>
                           {msg.role === 'assistant' && !msg.content && sending ? (
                             <div className="dot-spinner"><span /><span /><span /></div>
+                          ) : revealSetRef.current.has(msg) ? (
+                            <DecryptedText
+                              text={msg.content}
+                              animateOn="view"
+                              revealDirection="center"
+                              maxIterations={12}
+                              speed={revealDurationFor(msg.content.length)}
+                              characters="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789#@$%&*+=?中文字"
+                            />
                           ) : (
                             <div className="whitespace-pre-wrap">{msg.content}</div>
                           )}
@@ -187,7 +232,7 @@ export default function SessionPage() {
                 ))}
                 <div ref={messagesEndRef} />
               </div>
-            </ScrollArea>
+            </div>
 
             {/* Input */}
             <div className="px-6 pb-5 pt-4 border-t border-white/[0.04]">

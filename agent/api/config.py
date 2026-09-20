@@ -45,6 +45,11 @@ async def get_config_handler(request: Request):
             "temperature": config.llm.temperature,
             "timeout": config.llm.timeout,
             "streaming": config.llm.streaming,
+            "models": [
+                # 注意：不回传 api_key，密钥绝不发给前端
+                {"name": m.name, "provider": m.provider, "base_url": m.base_url}
+                for m in config.llm.models
+            ],
         },
         "agent": {
             "max_iterations": config.max_iterations,
@@ -87,12 +92,39 @@ async def update_config(req: UpdateConfigRequest, request: Request):
             config.llm.model = req.llm["model"]
         if "base_url" in req.llm:
             config.llm.base_url = req.llm["base_url"]
+        # 更新全局 API Key（可选）：仅当请求携带新 key 时覆盖，从不回传前端
+        if req.llm.get("api_key"):
+            config.llm.api_key = req.llm["api_key"]
         if "temperature" in req.llm:
             config.llm.temperature = req.llm["temperature"]
         if "timeout" in req.llm:
             config.llm.timeout = req.llm["timeout"]
         if "streaming" in req.llm:
             config.llm.streaming = req.llm["streaming"]
+        # 更新多模型预设列表；只信任 name/provider/base_url，且按 name 保留已有 api_key，
+        # 避免前端往返把密钥清空（key 一律不回传前端）
+        if "models" in req.llm and isinstance(req.llm["models"], list):
+            from agent.config import ModelPreset
+            existing = {m.name: m for m in config.llm.models}
+            presets: list[ModelPreset] = []
+            for m in req.llm["models"]:
+                name = (m or {}).get("name", "")
+                if not name:
+                    continue
+                p = ModelPreset(
+                    name=name,
+                    provider=(m or {}).get("provider", ""),
+                    base_url=(m or {}).get("base_url", ""),
+                )
+                # 仅当本次携带新 key 时更新；否则按 name 保留已有 key（前端往返不回传，故不清空）
+                if (m or {}).get("api_key"):
+                    p.api_key = m["api_key"]
+                else:
+                    old = existing.get(name)
+                    if old and old.api_key:
+                        p.api_key = old.api_key
+                presets.append(p)
+            config.llm.models = presets
 
     # 更新 Agent 配置
     if req.agent:
@@ -138,6 +170,9 @@ async def update_config(req: UpdateConfigRequest, request: Request):
         if "promotion_threshold" in req.memory_search:
             config.memory_search.promotion_threshold = req.memory_search["promotion_threshold"]
 
-    # TODO: 保存配置到文件
+    # 持久化到 .runtime_config.yaml（gitignored，不改私有 config.yaml）；
+    # 仅当本次显式给了全局 key 才写入它，避免把 AGENT_API_KEY 之类环境来源的 key 固化
+    from agent.config import save_config
+    save_config(config, include_global_key=bool(req.llm and req.llm.get("api_key")))
 
     return {"message": "Config updated"}

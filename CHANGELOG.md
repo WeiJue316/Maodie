@@ -1,5 +1,55 @@
 # Changelog
 
+## [0.5.9] - 2026-09-13
+
+### Fixed
+- **Web 设置保存后重启即丢失 / 切页面回退默认**：此前 `/api/config` PUT 只改内存（`# TODO: 保存配置到文件`），后端一重启（start.bat 重跑等）就打回 config.yaml 默认值（如 provider=mimo），用户以为保存了却消失。
+  - `agent/config.py`：新增 `save_config()` 与 `_apply_runtime_overlay()`，把 Web 可编辑字段持久化到**独立 `.runtime_config.yaml`**（gitignored，本地私有），不改动私有 `config.yaml`（其 mcp URL 令牌与 api key 占位保持原样）；`load_config()` 在环境变量覆盖后叠加运行时文件，优先级最高。
+  - `agent/api/config.py`：PUT 改为落盘。全局 api key 仅当本次显式传入才写入，避免固化 `AGENT_API_KEY` 等环境来源的 key。api key 与整份运行时文件只落本地、不入库。
+  - 验证：PUT 保存 → 生成 `.runtime_config.yaml` → 重启后端 → GET 仍返回已保存的 provider/model；GET 依旧不回传任何 key。
+
+## [0.5.8] - 2026-09-13
+
+### Added
+- **支持为「添加的模型」单独配置 API Key**（打通前端输入 → 后端存储 → 运行时生效）。
+  - 背景：此前运行链路只用全局 `config.llm.api_key`，即便 config.yaml 里每个 `ModelPreset` 带 `api_key`，请求也从不消费它；因此前端设置页不加 key 框是「加了也不生效」的装饰。
+  - `agent/config.py`：新增 `active_llm_config()`，按当前选中的 model 在预置列表定位，把该预置的 `base_url` / `api_key` / `provider` 合并进拷贝；未命中回落到全局值。密钥只存在于服务端内存，不跨前端往返。
+  - `agent/api/sessions.py`：两处聊天接口（流式 + 非流式）改为 `LLMClient(active_llm_config(config))`，切换模型/provider 后该模型自己的 key/端点生效。
+  - `agent/api/config.py`：PUT `/api/config` 接受 `llm.api_key`（覆盖全局 key）与每个模型项的 `api_key`（**仅当携带非空值才更新，否则按 name 保留已有 key**）；GET 依旧剥掉所有 `api_key`，密钥永不回传前端。
+  - `frontend/src/features/settings/SettingsPage.tsx`：「添加新模型」表单新增 **API Key（password，仅写不回显）** 输入；填了 key 时同时设为当前生效 key。Provider 下拉由写死的 4 项改为动态：内置 4 个 + 各预置中出现过的自定义 provider 自动并入，添加模型后 Provider 字段也切到该模型归属的 provider。`frontend/src/types/` 给 `llm.models` 补可选 `api_key` 字段。
+
+## [0.5.7] - 2026-09-13
+
+### Changed
+- **导航改为底部居中的 Mac 风格 Dock**（React Bits Dock）。
+  - `frontend/src/components/dock/Dock.tsx` + `Dock.css`：集成 React Bits 的 `Dock`（基于已装的 `framer-motion`，未新增依赖），鼠标靠近时图标按距离弹性放大、悬停显示标签，激活项以蓝边框/蓝图标高亮。
+  - `frontend/src/layouts/MainLayout.tsx`：移除左侧竖向导航栏，改为底部正中的 Dock 承载 会话/记忆/工具/技能/MCP/编排器/设置；左上角品牌区「Project Agent」与页面标题保留在顶部栏。点击仍复用 `navigate` + `setActiveModule` 切换路由。
+  - Dock 样式适配深色主题（半透明磨砂底 + 细边框），并沿用全屏 ClickSpark 点击火花。
+
+## [0.5.6] - 2026-09-13
+
+### Added
+- **会话页流式输出改为「解密」动画呈现（React Bits DecryptedText）**。
+  - `frontend/src/components/effects/DecryptedText.tsx`：集成 React Bits 的 `DecryptedText`（基于已装的 `framer-motion`，未新增依赖），文本先以随机字符掩盖再逐字解密展开，支持 `animateOn="view"` / 顺序/中心两种揭示方向。
+  - `frontend/src/features/session/SessionPage.tsx`：回复期间气泡只显示「思考中」动画，不再逐 token 实时写入；整段收完后一次性填回并标记为解密对象，以 `animateOn="view"` 在滚动可视区间淡入解密。`speed` 随回复长度动态计算（约 5ms/字符，总时长 0.5s~2s），短回复轻快、长回复从容。已落库的历史回复渲染为普通文本，仅本轮新生成的回复触发动画。
+
+## [0.5.5] - 2026-09-12
+
+### Added
+- **设置页 LLM 配置：模型下拉 + 添加/删除模型 + 切换 Provider 自动带出默认**。
+  - `agent/api/config.py`：`/api/config` GET 返回 `llm.models` 预置列表（**永不回传 `api_key`**，密钥一线不落地）；PUT 接受 `models` 并按 `name` 保留已有 api_key（往返不清空密钥）。
+  - `frontend/src/features/settings/SettingsPage.tsx`：「模型」由文本框改为**下拉**（已注册预置 + Provider 建议 + 当前模型），原生下拉经 `color-scheme:dark` 与 `<option>` 深底浅字保证可读；提供「＋ 添加新模型」（Provider 与模型之间，空白优先不预填）和「删除当前模型」；切换 Provider 时自动把模型/Base URL 填为该 Provider 默认（优先已注册预置）。
+  - Provider 下拉移除与「添加新模型」功能重叠的 `custom` UI 选项（后端仍支持 config.yaml 里 `provider: custom`）。
+
+## [0.5.4] - 2026-09-12
+
+### Fixed
+- **前端会话切换串页 + 历史会话被挤走**：`SessionPage` 中流式对话的回填与切换异步加载未做会话归属校验，在发送过程中切到别的会话会把上一个会话的 token/消息串进当前页；且每次发送后 `fetchSessions` 按 `updated_at` 重排侧栏，把选中的历史会话顶走。
+  - `frontend/src/features/session/SessionPage.tsx`：用 `activeSessionRef` 记录当前会话，切换时立即清空旧消息、丢弃乱序/越界 token；`loadMessages` 仅在仍停留该会话时才应用。
+  - `frontend/src/store/sessionSlice.ts`：`fetchSessions.fulfilled` 改为**按原顺序合并**现有会话（仅新增置顶），不再整表重排，选中会话因此保持固定。
+- **会话页输入框不贴底、消息区无法上下滚动**：flex 子项默认 `min-height:auto`，长对话时节缩容器拒绝收缩，内容溢出被外层 `overflow:hidden` 裁剪，导致输入框被顶出可视区、Radix 滚动不生效。修复：在 `SessionPage.tsx` 的根容器、侧栏列、两个 `ScrollArea` 及聊天列补 `min-h-0`，让滚动容器能被压缩并真正滚动，输入框回到最下方固定。聊天历史区由 Radix `ScrollArea` 改为**原生 `overflow-y-auto`** 滚动容器，右侧必然出现可拖动滚动条。
+- **会话列表不显示空会话**：`agent/api/sessions.py` 的列表接口为每条附上 `message_count`（加载对应会话统计）；`frontend/src/store/sessionSlice.ts` 过滤掉没有任何对话的空会话（刚新建且正在选中的空会话仍保留可见），侧栏只列出有真实内容的会话。
+
 ## [0.5.3] - 2026-09-12
 
 ### Fixed

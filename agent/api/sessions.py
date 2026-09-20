@@ -13,6 +13,8 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import Optional
 
+from agent.config import active_llm_config
+
 if TYPE_CHECKING:
     from agent.session import SessionManager
 
@@ -36,19 +38,25 @@ def get_session_manager(request: Request) -> SessionManager:
 
 @router.get("/")
 async def list_sessions(request: Request):
-    """获取会话列表。"""
+    """获取会话列表（附带每条的消息数，供前端过滤空会话）。"""
     session_manager = get_session_manager(request)
     sessions = session_manager.list_sessions()
-    return [
-        {
+    result = []
+    for s in sessions:
+        try:
+            sess = session_manager.load_session(s.id)
+            count = len(sess.messages or [])
+        except Exception:
+            count = 0
+        result.append({
             "id": s.id,
             "title": s.title,
             "created_at": s.created_at,
             "updated_at": s.updated_at,
             "work_dir": s.work_dir,
-        }
-        for s in sessions
-    ]
+            "message_count": count,
+        })
+    return result
 
 
 @router.post("/")
@@ -130,7 +138,7 @@ async def send_message(session_id: str, req: SendMessageRequest, request: Reques
     from agent.llm import LLMClient
 
     config = request.app.state.config
-    llm = LLMClient(config.llm)
+    llm = LLMClient(active_llm_config(config))
 
     agent_loop = AgentLoop(
         config=config,
@@ -161,7 +169,7 @@ async def chat(session_id: str, req: SendMessageRequest, request: Request):
     from agent.llm import LLMClient
 
     config = request.app.state.config
-    llm = LLMClient(config.llm)
+    llm = LLMClient(active_llm_config(config))
 
     agent_loop = AgentLoop(
         config=config,
